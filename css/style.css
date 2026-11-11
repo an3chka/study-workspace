@@ -858,3 +858,9 @@ h2.h-ic .ic { width: 20px; height: 20px; }
 .ci-text small { color: var(--muted); font-size: .78rem; }
 .carry { background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); }
 .carry-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ai-status { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 12px; font-size: .92rem; }
+.ai-status.ok { background: var(--good-soft); }
+.ai-status.ok .ic { color: var(--good); }
+.ai-status.bad { background: var(--bad-soft); }
+.ai-status.bad .ic { color: var(--bad); }
+.ai-status .ic { width: 20px; height: 20px; margin-top: 1px; }

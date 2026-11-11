@@ -104,6 +104,9 @@
         '</select><button type="button" class="btn" data-s="ai-models">Загрузить список</button></span></label>' +
         '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
         (used ? '<span class="muted small">запросов сегодня: ' + used + '</span>' : '') + '</div>' +
+        (c.lastTest ? '<div class="ai-status ' + (c.lastTest.ok ? 'ok' : 'bad') + '">' + I(c.lastTest.ok ? 'check-circle' : 'alert') +
+          '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
+          ' <small class="muted">(' + U.timeLabel(c.lastTest.ts) + ')</small></span></div>' : '') +
       '</form></section>';
   }
 
@@ -122,6 +125,7 @@
     const t = e.target;
     if (t.form && t.form.id === 'ai-form') {
       const c = AI.cfg();
+      c.lastTest = null;
       if (t.name === 'provider') { c.provider = t.value; c.model = ''; c.models = []; c.autoModel = ''; }
       else { c[t.name] = t.value.trim(); if (t.name === 'key') c.autoModel = ''; }
       Store.save();
@@ -185,8 +189,18 @@
       }
     }
     if (b.dataset.s === 'ai-test') {
-      const r = await AI.run(b, () => AI.test());
-      if (r) { U.toast('Нейросеть отвечает: «' + String(r).slice(0, 60) + '» — всё работает!'); App.render(); }
+      const c = AI.cfg();
+      b.disabled = true;
+      b.innerHTML = '<span class="spinner"></span> проверяю…';
+      try {
+        const r = await AI.test();
+        c.lastTest = { ok: true, msg: String(r).slice(0, 60), ts: Date.now() };
+        U.toast('Нейросеть отвечает — всё работает!');
+      } catch (err) {
+        c.lastTest = { ok: false, msg: err.message, ts: Date.now() };
+      }
+      Store.save();
+      App.render();
     }
     if (b.dataset.s === 'export') {
       S().settings.lastBackup = Date.now();
