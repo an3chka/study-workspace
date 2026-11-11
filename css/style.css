@@ -753,3 +753,88 @@ h2.h-ic .ic { width: 20px; height: 20px; }
   .ni { width: auto; }
   .ni .ic { width: 22px; height: 22px; }
 }
+
+/* ===== Нейросеть ===== */
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; display: inline-block; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai-steps { margin: 0; }
+.ai-card .row-btns { align-items: center; }
+.ai-badge { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; padding: 2px 8px; border-radius: 99px; background: var(--grad); color: var(--on-grad); font-weight: 700; }
+.ai-btn { border-color: transparent; background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); color: var(--accent); }
+.wp-ai { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 12px; background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); }
+.wp-ai p { margin: 0; }
+.wp-ai-head { display: flex; align-items: center; gap: 6px; }
+.wp-ai-head .ic { color: var(--accent); }
+.wp-ai .btn { align-self: flex-start; }
+.gen-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; }
+.gen-list label.check { align-items: flex-start; font-size: .92rem; }
+.gen-list input { margin-top: 4px; }
+
+/* ===== Уроки ===== */
+.lesson-profile, .lesson-start { display: flex; flex-direction: column; gap: 12px; }
+.lesson-start .btn.big { align-self: stretch; }
+.lp-top { display: flex; gap: 14px; align-items: center; }
+.lp-level { width: 74px; height: 74px; flex: none; border-radius: 22px; background: var(--grad); color: var(--on-grad); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(217, 100, 156, .22); }
+.lp-level span { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.lp-level small { font-size: .62rem; text-align: center; padding: 0 4px; line-height: 1.1; margin-top: 3px; }
+.lp-xp { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.lp-xp-row { display: flex; justify-content: space-between; gap: 8px; }
+.lesson-hist { list-style: none; margin: 0; padding: 0; }
+.lesson-hist li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.lesson-hist li:last-child { border-bottom: 0; }
+.lh-title { flex: 1; min-width: 140px; font-weight: 600; }
+.lh-stars { display: inline-flex; min-width: 54px; }
+.star .ic { width: 16px; height: 16px; color: var(--border); }
+.star.on .ic { color: #f3b64f; fill: #f7c86b; }
+.result-stars .star .ic { width: 42px; height: 42px; }
+.xp-pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; background: var(--grad); color: var(--on-grad); font-weight: 800; font-size: .8rem; white-space: nowrap; }
+
+.game { max-width: 640px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.game-top { display: flex; align-items: center; gap: 10px; }
+.game-progress { flex: 1; height: 12px; }
+.hearts { display: inline-flex; gap: 2px; }
+.heart .ic { width: 20px; height: 20px; color: var(--border); }
+.heart.on .ic { color: var(--accent); fill: var(--accent); }
+.game-card { display: flex; flex-direction: column; gap: 12px; padding: 22px; }
+.lesson-intro { font-size: 1.05rem; line-height: 1.6; }
+.ex-kind { margin: 0; font-size: .8rem; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 700; }
+.ex-q { margin: 0; font-size: 1.3rem; font-weight: 700; line-height: 1.4; }
+.gap { display: inline-block; min-width: 70px; border-bottom: 3px solid var(--accent); margin: 0 4px; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choice { display: flex; align-items: center; gap: 10px; text-align: left; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; transition: transform .08s, border-color .15s; }
+.choice:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+.choice .ck { width: 24px; height: 24px; flex: none; border-radius: 8px; display: grid; place-items: center; font-size: .78rem; background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.choice.right { border-color: var(--good); background: var(--good-soft); }
+.choice.wrong { border-color: var(--bad); background: var(--bad-soft); }
+.choice.dim { opacity: .55; }
+.choice:disabled { cursor: default; }
+.gap-form { display: flex; gap: 8px; }
+.gap-form input { font-size: 1.05rem; }
+.tr-form { flex-direction: column; }
+.tr-form .btn { align-self: flex-start; }
+.order-line { min-height: 54px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-radius: 14px; border: 1.5px dashed var(--border); }
+.order-bank { display: flex; flex-wrap: wrap; gap: 6px; }
+.wchip { padding: 7px 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.wchip.on { background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); border-color: var(--accent); }
+.wchip.ghost { opacity: .3; cursor: default; border-style: dashed; }
+.game-card > .btn.primary { align-self: flex-start; }
+.feedback { border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; animation: fade .15s; border: 1px solid transparent; }
+.feedback p { margin: 0; }
+.feedback.ok { background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.feedback.bad { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.fb-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.05rem; flex-wrap: wrap; }
+.feedback.ok .fb-head .ic { color: var(--good); }
+.feedback.bad .fb-head .ic { color: var(--bad); }
+.feedback .btn { align-self: flex-start; margin-top: 4px; }
+.result { align-items: center; text-align: center; }
+.result-badge { width: 96px; height: 96px; border-radius: 30px; background: var(--grad); color: var(--on-grad); display: grid; place-items: center; font-size: 2.2rem; font-weight: 800; }
+.level-suggest { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 10px 14px; border-radius: 14px; background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); }
+.level-suggest .ic { color: var(--accent); }
+.mistakes { width: 100%; text-align: left; }
+.mistakes ul { padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.soft-alert a { font-weight: 700; }
+@media (max-width: 560px) {
+  .choices { grid-template-columns: 1fr; }
+  .ex-q { font-size: 1.15rem; }
+  .game-card { padding: 16px; }
+}

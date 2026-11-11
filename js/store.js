@@ -39,6 +39,7 @@
       mood: [],              // отметки самочувствия
       journal: [],           // записи: благодарности, разгрузка мыслей
       practice: [],          // выполненные упражнения
+      lessons: { level: '', lang: 'en-US', history: [], mistakes: [], xp: 0 }, // уроки с нейросетью
       known: {},             // знакомые слова по языкам: {'en-US': ['the', ...]}
     };
   }
@@ -56,6 +57,7 @@
       if (!Array.isArray(out[k])) out[k] = base[k];
     });
     if (!out.known || typeof out.known !== 'object' || Array.isArray(out.known)) out.known = {};
+    out.lessons = Object.assign({ level: '', lang: 'en-US', history: [], mistakes: [], xp: 0 }, out.lessons && typeof out.lessons === 'object' ? out.lessons : {});
     if (!out.categories.length) out.categories = defaults().categories;
     out.decks.forEach((d) => { if (!Array.isArray(d.cards)) d.cards = []; });
     out.hobbies.forEach((h) => { if (!Array.isArray(h.log)) h.log = []; });
@@ -104,7 +106,10 @@
     task(id) { return state.tasks.find((t) => t.id === id); },
 
     exportJSON() {
-      return JSON.stringify(Object.assign({ exportedAt: new Date().toISOString() }, state), null, 2);
+      // Ключ нейросети в файл не попадает — файлом могут поделиться.
+      const copy = JSON.parse(JSON.stringify(state));
+      if (copy.settings && copy.settings.ai) copy.settings.ai.key = '';
+      return JSON.stringify(Object.assign({ exportedAt: new Date().toISOString() }, copy), null, 2);
     },
 
     importJSON(text) {
@@ -113,7 +118,10 @@
         throw new Error('Это не похоже на файл рабочего кабинета');
       }
       delete data.exportedAt;
+      // Не затираем свой ключ нейросети пустым из файла
+      const myAi = state.settings && state.settings.ai;
       state = normalize(data);
+      if (myAi && myAi.key && (!state.settings.ai || !state.settings.ai.key)) state.settings.ai = Object.assign({}, state.settings.ai || {}, { key: myAi.key });
       Store.save();
     },
 

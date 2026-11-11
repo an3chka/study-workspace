@@ -113,7 +113,7 @@
     const totalDue = decks.reduce((a, d) => a + counts(d).toStudy, 0);
     el.innerHTML =
       '<header class="page-head"><div><h1>Языки</h1><p class="muted">Карточки «слово — перевод» с интервальным повторением</p></div>' +
-      '<button class="btn primary" data-c="new-deck">+ Колода</button></header>' + App.langTabs('cards') +
+      '<div class="row-btns"><button class="btn ai-btn" data-c="gen-deck">' + I('sparkles') + ' Сгенерировать</button><button class="btn primary" data-c="new-deck">+ Колода</button></div></header>' + App.langTabs('cards') +
       (decks.length ? '<p class="muted">' + (totalDue ? 'Сегодня к повторению: <b>' + totalDue + '</b> ' + U.plural(totalDue, ['карточка', 'карточки', 'карточек']) : 'На сегодня всё повторено') + '</p>' : '') +
       '<div class="deck-grid">' + (decks.length ? decks.map((d) => {
         const c = counts(d);
@@ -315,6 +315,69 @@
     });
   }
 
+  // ---------- Генерация колоды нейросетью ----------
+
+  const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
+  App.LEVELS = LEVELS;
+
+  function genDeckModal() {
+    if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); location.hash = '#/settings'; return; }
+    const prof = S().lessons;
+    App.modal({
+      title: 'Сгенерировать колоду',
+      body:
+        '<label>Тема<input name="topic" required maxlength="120" placeholder="например, путешествия, собеседование, эмоции, IT"></label>' +
+        '<div class="row"><label>Язык<select name="lang">' + LANGS.filter((l) => l[0] && l[0] !== 'ru-RU').map(([c, n]) => '<option value="' + c + '"' + (c === (prof.lang || 'en-US') ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
+        '<label>Уровень<select name="level">' + LEVELS.map((l) => '<option' + (l === (prof.level || 'A2') ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label></div>' +
+        '<label>Сколько слов<select name="count"><option>10</option><option selected>15</option><option>25</option></select></label>' +
+        '<label class="check"><input type="checkbox" name="phrases"> Добавить полезные фразы, а не только слова</label>',
+      submit: 'Сгенерировать',
+      onSubmit(d) {
+        const existing = new Set(S().decks.flatMap((x) => x.cards.map((c) => c.front.toLowerCase())));
+        U.toast('Генерирую колоду… это займёт 5–20 секунд');
+        AI.ask({
+          json: true, temperature: 0.8,
+          system: 'Ты — методист по иностранным языкам. Составляешь карточки для русскоязычной студентки.',
+          prompt: 'Составь ' + d.count + ' карточек. Язык: ' + langName(d.lang) + ', уровень ' + d.level + ', тема: «' + d.topic + '».' +
+            (d.phrases ? ' Примерно треть — полезные фразы и выражения.' : '') +
+            ' Выбирай частотные, полезные слова этого уровня. Для английских глаголов пиши с "to".' +
+            ' Верни JSON: {"deck_name": "короткое название колоды по-русски", "cards": [{"front": "слово на изучаемом языке", "back": "перевод на русский (1-3 варианта через запятую)", "example": "короткий пример на изучаемом языке"}]}',
+        }).then((r) => {
+          const cards = (r && Array.isArray(r.cards) ? r.cards : []).filter((c) => c && c.front && c.back);
+          if (!cards.length) { U.toast('Нейросеть не прислала карточки. Попробуй ещё раз.'); return; }
+          previewModal(r.deck_name || d.topic, d.lang, cards, existing);
+        }).catch((e) => U.toast(e.message));
+      },
+    });
+  }
+
+  function previewModal(name, lang, cards, existing) {
+    App.modal({
+      title: 'Проверь карточки',
+      body:
+        '<label>Название колоды<input name="name" value="' + U.esc(name) + '" maxlength="60" required></label>' +
+        '<p class="muted small">Сними галочки со слов, которые не нужны или уже знаешь.</p>' +
+        '<ul class="gen-list">' + cards.map((c, i) => {
+          const dup = existing.has(String(c.front).toLowerCase());
+          return '<li><label class="check"><input type="checkbox" name="c' + i + '"' + (dup ? '' : ' checked') + '>' +
+            '<span><b>' + U.esc(c.front) + '</b> — ' + U.esc(c.back) + (dup ? ' <span class="tag">уже есть</span>' : '') +
+            (c.example ? '<br><small class="muted">' + U.esc(c.example) + '</small>' : '') + '</span></label></li>';
+        }).join('') + '</ul>',
+      submit: 'Создать колоду',
+      onSubmit(d, form) {
+        const chosen = cards.filter((c, i) => form.querySelector('[name=c' + i + ']').checked);
+        if (!chosen.length) { U.toast('Выбери хотя бы одно слово'); return false; }
+        const deck = { id: U.uid(), name: d.name || name, lang, direction: 'fb', created: Date.now(),
+          cards: chosen.map((c) => ({ id: U.uid(), front: String(c.front).trim(), back: String(c.back).trim(), note: String(c.example || '').trim(), created: Date.now() })) };
+        S().decks.push(deck);
+        Store.save();
+        screen = { name: 'deck', id: deck.id };
+        App.render();
+        U.toast('Колода готова: ' + chosen.length + ' ' + U.plural(chosen.length, ['карточка', 'карточки', 'карточек']));
+      },
+    });
+  }
+
   function addSample() {
     const words = [
       ['journey', 'путешествие, поездка', 'Life is a journey.'], ['to borrow', 'брать взаймы', 'Can I borrow your pen?'],
@@ -343,6 +406,7 @@
     const id = b.dataset.id;
     switch (b.dataset.c) {
       case 'new-deck': deckModal(); break;
+      case 'gen-deck': genDeckModal(); break;
       case 'sample': addSample(); break;
       case 'open': screen = { name: 'deck', id }; App.render(); break;
       case 'back': screen = study && screen.name === 'study' ? { name: 'deck', id: study.deckId } : { name: 'list' }; if (screen.name === 'deck' && b.closest('.study-done')) screen = { name: 'list' }; study = null; App.render(); break;

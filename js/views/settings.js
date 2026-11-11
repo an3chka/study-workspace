@@ -51,6 +51,8 @@
       '</section>' +
       '</div>' +
 
+      aiSection() +
+
       '<section class="card"><h2>Данные</h2>' +
         '<p>Все данные хранятся <b>только в этом браузере</b> на этом устройстве (' + counts + '). ' +
         'На другом устройстве или в другом браузере будет пустой кабинет — перенести данные можно файлом.</p>' +
@@ -80,6 +82,31 @@
       '</div>';
   }
 
+  function aiSection() {
+    const c = AI.cfg();
+    const p = AI.PROVIDERS[c.provider];
+    const used = Store.state.aiUsage && Store.state.aiUsage.day === U.dayKey(Date.now()) ? Store.state.aiUsage.n : 0;
+    return '<section class="card ai-card"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Нейросеть</h2>' +
+      '<span class="tag ' + (AI.ready() ? 'ok' : '') + '">' + (AI.ready() ? 'подключена' : 'не подключена') + '</span></div>' +
+      '<p class="muted small">Нужна для уроков английского, объяснения слов в контексте и генерации карточек. Бесплатно: возьми ключ у одного из сервисов и вставь сюда. ' +
+      'Ключ хранится только в этом браузере и не попадает в экспорт.</p>' +
+      '<form id="ai-form" class="settings-form">' +
+        '<label>Сервис<select name="provider">' + Object.keys(AI.PROVIDERS).map((k) => '<option value="' + k + '"' + (k === c.provider ? ' selected' : '') + '>' + AI.PROVIDERS[k].name + '</option>').join('') + '</select></label>' +
+        (c.provider === 'gemini' ? '<p class="muted small">В России Gemini работает только через VPN. Если не открывается — выбери OpenRouter.</p>' : '') +
+        (c.provider === 'openrouter' ? '<p class="muted small">Работает без VPN. Бесплатные модели: около 50 запросов в день (урок ≈ 2–4 запроса).</p>' : '') +
+        (p.keyUrl ? '<ol class="plain small ai-steps"><li>Открой <a href="' + p.keyUrl + '" target="_blank" rel="noopener noreferrer">' + p.keyUrl.replace('https://', '') + '</a> и войди (можно через Google).</li>' +
+          '<li>Нажми «Create key» / «Создать ключ» и скопируй его.</li><li>Вставь ключ в поле ниже и нажми «Проверить».</li></ol>' : '') +
+        (c.provider === 'custom' ? '<label>Адрес (OpenAI-совместимый)<input name="baseUrl" value="' + U.esc(c.baseUrl || '') + '" placeholder="http://localhost:11434/v1"></label>' : '') +
+        '<label>Ключ' + (c.provider === 'custom' ? ' (если нужен)' : '') + '<span class="inline-row"><input name="key" type="password" autocomplete="off" value="' + U.esc(c.key || '') + '" placeholder="вставь ключ сюда">' +
+          '<button type="button" class="btn" data-s="ai-show">' + I('eye') + '</button></span></label>' +
+        '<label>Модель<span class="inline-row"><select name="model"><option value="">' + U.esc(AI.model()) + ' (по умолчанию)</option>' +
+          (c.models || []).map((m) => '<option value="' + U.esc(m.id) + '"' + (m.id === c.model ? ' selected' : '') + '>' + U.esc(m.label) + '</option>').join('') +
+        '</select><button type="button" class="btn" data-s="ai-models">Загрузить список</button></span></label>' +
+        '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
+        (used ? '<span class="muted small">запросов сегодня: ' + used + '</span>' : '') + '</div>' +
+      '</form></section>';
+  }
+
   function download(name, text) {
     const blob = new Blob([text], { type: 'application/json' });
     const a = document.createElement('a');
@@ -93,6 +120,14 @@
   document.addEventListener('change', (e) => {
     if (!root || !root.contains(e.target)) return;
     const t = e.target;
+    if (t.form && t.form.id === 'ai-form') {
+      const c = AI.cfg();
+      if (t.name === 'provider') { c.provider = t.value; c.model = ''; c.models = []; c.autoModel = ''; }
+      else { c[t.name] = t.value.trim(); if (t.name === 'key') c.autoModel = ''; }
+      Store.save();
+      if (t.name === 'provider' || t.name === 'key') App.render();
+      return;
+    }
     const st = S().settings;
     if (t.form && t.form.id === 'settings-form') {
       if (t.type === 'checkbox') st[t.name] = t.checked;
@@ -137,6 +172,22 @@
     const b = e.target.closest('[data-s]');
     if (!b) return;
     const id = b.dataset.id;
+    if (b.dataset.s === 'ai-show') {
+      const inp = root.querySelector('#ai-form [name=key]');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+    if (b.dataset.s === 'ai-models') {
+      const list = await AI.run(b, () => AI.listModels());
+      if (list) {
+        AI.cfg().models = list.slice(0, 60);
+        Store.save(); App.render();
+        U.toast(list.length ? 'Нашлось моделей: ' + list.length : 'Подходящих моделей не нашлось');
+      }
+    }
+    if (b.dataset.s === 'ai-test') {
+      const r = await AI.run(b, () => AI.test());
+      if (r) { U.toast('Нейросеть отвечает: «' + String(r).slice(0, 60) + '» — всё работает!'); App.render(); }
+    }
     if (b.dataset.s === 'export') {
       S().settings.lastBackup = Date.now();
       Store.save();
@@ -169,7 +220,7 @@
   });
 
   document.addEventListener('submit', (e) => {
-    if (root && e.target.id === 'settings-form') { e.preventDefault(); return; }
+    if (root && (e.target.id === 'settings-form' || e.target.id === 'ai-form')) { e.preventDefault(); return; }
     if (!root || e.target.id !== 'add-cat') return;
     e.preventDefault();
     const name = U.formData(e.target).name;

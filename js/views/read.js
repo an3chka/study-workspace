@@ -66,7 +66,8 @@
   function tabs(active) {
     return '<div class="seg lang-tabs" role="tablist">' +
       '<a role="tab" class="' + (active === 'cards' ? 'on' : '') + '" href="#/cards">' + I('cards') + ' Карточки</a>' +
-      '<a role="tab" class="' + (active === 'read' ? 'on' : '') + '" href="#/read">' + I('book') + ' Чтение</a></div>';
+      '<a role="tab" class="' + (active === 'read' ? 'on' : '') + '" href="#/read">' + I('book') + ' Чтение</a>' +
+      '<a role="tab" class="' + (active === 'lessons' ? 'on' : '') + '" href="#/lessons">' + I('sparkles') + ' Уроки</a></div>';
   }
   App.langTabs = tabs;
 
@@ -187,6 +188,7 @@
         '<input name="back" value="' + U.esc(entry ? entry.card.back : '') + '" placeholder="Перевод…" aria-label="Перевод" maxlength="300" required>' +
         (o.sentence ? '<label class="check small wp-ex"><input type="checkbox" name="useNote" checked> <span>пример: «' + U.esc(o.sentence) + '»</span></label>' : '') +
         '<div class="wp-more">' +
+          (o.sentence ? '<button type="button" class="btn small ai-btn" data-wp="ai">' + I('sparkles') + ' Объяснить в контексте</button>' : '') +
           (o.sentence && src0 && src0 !== 'ru' ? '<button type="button" class="btn small" data-wp="sent">' + I('globe') + ' Перевести предложение</button>' : '') +
           (src0 === 'en' && !/\s/.test(o.display) ? '<button type="button" class="btn small" data-wp="defs">' + I('book') + ' Значения слова</button>' : '') +
         '</div><div class="wp-info" hidden></div>' +
@@ -242,6 +244,37 @@
       if (!b) return;
       if (b.dataset.wp === 'close') closePop();
       if (b.dataset.wp === 'speak') speak(o.display, t.lang);
+      if (b.dataset.wp === 'ai') {
+        if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); return; }
+        const myPop = pop;
+        AI.run(b, () => AI.ask({
+          json: true, temperature: 0.3,
+          system: 'Ты — преподаватель иностранного языка для русскоязычной студентки. Объясняй коротко и понятно, по-русски.',
+          prompt: 'Язык текста: ' + (App.langName(t.lang) || 'не указан') + '.\nСлово или фраза: "' + o.display + '"\nПредложение: "' + o.sentence + '"\n\n' +
+            'Объясни значение именно в этом предложении. Верни JSON: {"lemma": "начальная форма слова (для глаголов в английском с to)", ' +
+            '"translation": "перевод в этом контексте, 1-3 слова", "pos": "часть речи по-русски", ' +
+            '"meaning": "1-2 предложения: что значит здесь и чем отличается от других значений", ' +
+            '"example": "ещё один простой пример с этим значением на языке оригинала", "example_ru": "перевод примера"}',
+        })).then((r) => {
+          if (!r || pop !== myPop) return;
+          const info = pop.querySelector('.wp-info');
+          info.hidden = false;
+          info.insertAdjacentHTML('afterbegin',
+            '<div class="wp-ai"><div class="wp-ai-head">' + I('sparkles') + ' <b>' + U.esc(r.translation || '') + '</b>' + (r.pos ? ' <span class="tag">' + U.esc(r.pos) + '</span>' : '') + '</div>' +
+            (r.meaning ? '<p>' + U.esc(r.meaning) + '</p>' : '') +
+            (r.example ? '<p class="muted"><i>' + U.esc(r.example) + '</i>' + (r.example_ru ? '<br>' + U.esc(r.example_ru) : '') + '</p>' : '') +
+            '<button type="button" class="btn small" data-wp="ai-fill">' + I('check') + ' Подставить в карточку</button></div>');
+          o.ai = r;
+          b.remove();
+        });
+      }
+      if (b.dataset.wp === 'ai-fill' && o.ai) {
+        const f = pop.querySelector('form');
+        if (o.ai.lemma) f.front.value = o.ai.lemma;
+        if (o.ai.translation) f.back.value = o.ai.translation;
+        if (o.ai.example) o.aiNote = o.ai.example + (o.ai.example_ru ? ' — ' + o.ai.example_ru : '');
+        U.toast('Подставила. Нажми «В карточки», чтобы сохранить.');
+      }
       if (b.dataset.wp === 'sent' || b.dataset.wp === 'defs') {
         const info = pop.querySelector('.wp-info');
         const myPop = pop;
@@ -281,7 +314,7 @@
       const d = U.formData(form);
       if (!d.back) { back.focus(); return; }
       const note = form.querySelector('[name=useNote]') && form.querySelector('[name=useNote]').checked
-        ? o.sentence + (o.sentenceTr ? ' — ' + o.sentenceTr : '') : '';
+        ? o.sentence + (o.sentenceTr ? ' — ' + o.sentenceTr : '') : (o.aiNote || '');
       if (entry) {
         entry.card.front = d.front || entry.card.front;
         entry.card.back = d.back;
