@@ -101,8 +101,7 @@
       if (/\s/.test(k)) return 'В ключе есть пробел или перенос строки — скопируй его заново.';
       if (c.provider === 'gemini' && /^sk-/.test(k)) return 'Это похоже на ключ OpenRouter, а выбран Gemini. Ключ Gemini начинается с «AIza».';
       if (c.provider === 'openrouter' && /^AIza/.test(k)) return 'Это ключ Gemini, а выбран OpenRouter. Переключи «Сервис» на Gemini.';
-      if (c.provider === 'gemini' && !/^AIza/.test(k)) return 'Ключ Gemini обычно начинается с «AIza». Проверь, что скопирован именно API key.';
-      if (c.provider === 'gemini' && k.length < 35) return 'Ключ слишком короткий — похоже, скопировался не целиком.';
+      if (c.provider === 'gemini' && k.length < 30) return 'Ключ слишком короткий — похоже, скопировался не целиком.';
       if (c.provider === 'openrouter' && !/^sk-or-/.test(k)) return 'Ключ OpenRouter обычно начинается с «sk-or-». Проверь, что скопирован целиком.';
       return '';
     },
@@ -118,7 +117,7 @@
       const kp = AI.keyProblem();
       if (kp) throw new Error(kp);
       // Для Gemini один раз подбираем свежую модель из списка (названия моделей у Google меняются)
-      if (c.provider === 'gemini' && !c.model && !c.autoModel) {
+      if (c.provider === 'gemini' && !c.model && !c.autoModel && !/^AQ\./.test(String(c.key || ''))) {
         try { const list = await AI.listModels(); if (list[0]) { c.autoModel = list[0].id; Store.saveSoon(); } } catch (e) { /* возьмём модель по умолчанию */ }
       }
       const messages = Array.isArray(o.prompt) ? o.prompt : [{ role: 'user', text: o.prompt }];
@@ -131,11 +130,20 @@
         };
         if (system.trim()) body.systemInstruction = { parts: [{ text: system }] };
         if (o.json) body.generationConfig.responseMimeType = 'application/json';
-        const data = await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(AI.model()) + ':generateContent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key },
-          body: JSON.stringify(body),
-        });
+        // Ключи нового формата (AQ.…) могут работать через Vertex AI — пробуем оба адреса Google
+        const endpoints = geminiEndpoints(AI.model());
+        let data = null, firstErr = null;
+        for (const ep of endpoints) {
+          try {
+            data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) });
+            if (c.endpoint !== ep.kind) { c.endpoint = ep.kind; Store.saveSoon(); }
+            break;
+          } catch (e) {
+            firstErr = firstErr || e;
+            if (/регионе|Нет связи/.test(e.message)) break;
+          }
+        }
+        if (!data) throw firstErr;
         const cand = data.candidates && data.candidates[0];
         text = cand && cand.content && cand.content.parts ? cand.content.parts.map((p) => p.text || '').join('') : '';
         if (!text) throw new Error(cand && cand.finishReason === 'SAFETY' ? 'Нейросеть отказалась отвечать на этот запрос.' : 'Пустой ответ от нейросети.');
@@ -213,6 +221,14 @@
       return r;
     },
   };
+
+  function geminiEndpoints(model) {
+    const c = cfg();
+    const studio = { kind: 'studio', url: 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent' };
+    const vertex = { kind: 'vertex', url: 'https://aiplatform.googleapis.com/v1/publishers/google/models/' + encodeURIComponent(model) + ':generateContent' };
+    if (!/^AQ\./.test(String(c.key || ''))) return [studio];
+    return c.endpoint === 'vertex' ? [vertex, studio] : [studio, vertex];
+  }
 
   // Для OpenRouter: последняя сработавшая модель + лучшие быстрые бесплатные + общий автовыбор.
   let orCache = null;
