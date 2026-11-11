@@ -29,12 +29,17 @@
     return 'Ошибка нейросети (' + status + '): ' + String(text || '').slice(0, 160);
   }
 
-  async function request(url, opts) {
+  async function request(url, opts, timeoutMs) {
     let res;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 60000);
     try {
-      res = await fetch(url, opts);
+      res = await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
     } catch (e) {
+      if (e.name === 'AbortError') throw Object.assign(new Error('Модель слишком долго думала.'), { retry: true });
       throw new Error('Нет связи с сервисом нейросети. Проверь интернет' + (cfg().provider === 'gemini' ? ' или VPN.' : '.'));
+    } finally {
+      clearTimeout(timer);
     }
     const text = await res.text();
     if (!res.ok) throw new Error(friendlyError(res.status, text));
@@ -68,7 +73,7 @@
 
     ready() { const c = cfg(); return c.provider === 'custom' ? !!c.baseUrl : !!c.key; },
 
-    model() { const c = cfg(); return c.model || (c.provider === 'gemini' && c.autoModel) || PROVIDERS[c.provider].defaultModel; },
+    model() { const c = cfg(); return c.model || ((c.provider === 'gemini' || c.provider === 'openrouter') && c.autoModel) || PROVIDERS[c.provider].defaultModel; },
 
     // Отправить запрос. system — инструкция, prompt — текст (или массив сообщений {role, text}).
     // json: true — попросить ответ в JSON и сразу разобрать его.
@@ -106,13 +111,38 @@
         const msgs = [];
         if (system.trim()) msgs.push({ role: 'system', content: system });
         messages.forEach((m) => msgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }));
-        const data = await request(base + '/chat/completions', {
-          method: 'POST', headers,
-          body: JSON.stringify({ model: AI.model(), messages: msgs, temperature: o.temperature == null ? 0.7 : o.temperature }),
-        });
-        if (data.error) throw new Error(friendlyError(data.error.code || 0, data.error.message));
-        text = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
-        if (!text) throw new Error('Пустой ответ от нейросети. Попробуй ещё раз или выбери другую модель.');
+        // Модели-кандидаты: выбранная вручную — или подобранные автоматически (до 3 попыток)
+        const candidates = c.model || c.provider !== 'openrouter' ? [AI.model()] : await openRouterCandidates();
+        let lastErr = null;
+        for (const model of candidates) {
+          AI.status = 'спрашиваю ' + shortName(model) + '…';
+          try {
+            const data = await request(base + '/chat/completions', {
+              method: 'POST', headers,
+              body: JSON.stringify({
+                model, messages: msgs,
+                temperature: o.temperature == null ? 0.7 : o.temperature,
+                max_tokens: o.maxTokens || 4000,
+                reasoning: { effort: 'low' }, // «думающие» модели пусть думают покороче
+              }),
+            }, 75000);
+            if (data.error) throw Object.assign(new Error(friendlyError(data.error.code || 0, data.error.message)), { retry: true });
+            const msg = data.choices && data.choices[0] && data.choices[0].message;
+            text = msg && msg.content ? String(msg.content) : '';
+            if (!text.trim()) throw Object.assign(new Error('Модель вернула пустой ответ.'), { retry: true });
+            if (o.json) parseJSON(text); // проверим формат сразу, чтобы при ошибке попробовать другую модель
+            if (c.provider === 'openrouter' && !c.model && c.autoModel !== model) { c.autoModel = model; Store.saveSoon(); }
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            if (c.provider === 'openrouter' && !c.model && c.autoModel === model) { c.autoModel = ''; }
+            // неверный ключ — нет смысла пробовать другие модели
+            if (/Ключ не подошёл|Нет связи/.test(e.message)) break;
+          }
+        }
+        AI.status = '';
+        if (lastErr) throw new Error(lastErr.message + (candidates.length > 1 ? ' (попробовала ' + candidates.length + ' модели)' : '') + ' Попробуй ещё раз через минуту.');
       }
       countUse();
       return o.json ? parseJSON(text) : text.trim();
@@ -148,6 +178,23 @@
     },
   };
 
+  // Для OpenRouter: последняя сработавшая модель + лучшие быстрые бесплатные + общий автовыбор.
+  let orCache = null;
+  async function openRouterCandidates() {
+    const c = cfg();
+    const out = [];
+    if (c.autoModel) out.push(c.autoModel);
+    try {
+      if (!orCache) orCache = await AI.listModels();
+      orCache.filter((m) => m.id !== 'openrouter/free' && !SLOW.test(m.id)).slice(0, 3).forEach((m) => out.push(m.id));
+    } catch (e) { /* без списка — только автовыбор */ }
+    out.push('openrouter/free');
+    return Array.from(new Set(out)).slice(0, 3);
+  }
+  // «Думающие» и узкоспециальные модели — медленные или не про текст
+  const SLOW = /reason|think|r1\b|omni|-vl|vision|lyria|code|coder|guard|embed/i;
+  function shortName(id) { return String(id).split('/').pop().replace(/:free$/, ''); }
+
   // Чем выше — тем лучше модель для наших задач (грубая эвристика для сортировки).
   function score(id) {
     let s = 0;
@@ -157,6 +204,9 @@
     if (/lite/.test(id)) s -= 3;
     if (/preview|exp/.test(id)) s -= 2;
     if (id === 'openrouter/free') s += 100;
+    if (/gemma-4-31b|gemma-3-27b|llama-3\.3-70b|mistral-small|deepseek-chat|qwen.*instruct/.test(id)) s += 20;
+    if (SLOW.test(id)) s -= 40;
+    if (/550b|405b|ultra/.test(id)) s -= 8; // огромные модели на бесплатных серверах часто медленные
     if (/deepseek|llama-[34].*70b|qwen.*(72|235)b|gemma-[34]-(27|31)b|ultra|large|mistral-medium/.test(id)) s += 30;
     if (/super|maverick/.test(id)) s += 15;
     if (/(\b|-)(0\.5|1|1\.7|2|2\.6|3|4|7|8)b\b|mini|small|nano|tiny|lightning/.test(id)) s -= 12;
@@ -167,8 +217,18 @@
   // Удобная обёртка: показывает «думаю…» на кнопке и тост с ошибкой.
   AI.run = async function (btn, fn) {
     const old = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> думаю…'; }
-    try { return await fn(); } catch (e) { U.toast(e.message); return null; } finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = old; } }
+    const started = Date.now();
+    const paint = () => {
+      if (!btn || !btn.isConnected) return;
+      const sec = Math.round((Date.now() - started) / 1000);
+      btn.innerHTML = '<span class="spinner"></span> ' + U.esc(AI.status || 'думаю…') + (sec >= 3 ? ' ' + sec + ' с' : '');
+    };
+    let iv = null;
+    if (btn) { btn.disabled = true; paint(); iv = setInterval(paint, 1000); }
+    try { return await fn(); } catch (e) { U.toast(e.message); return null; } finally {
+      clearInterval(iv);
+      if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = old; }
+    }
   };
 
   window.AI = AI;
