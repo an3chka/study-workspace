@@ -42,7 +42,7 @@
       items.push({
         label: period === 'week' ? U.weekday(d) : String(new Date(d).getDate()),
         value: v,
-        color: goal && v >= goal ? 'var(--good)' : 'var(--accent)',
+        color: goal && v >= goal ? 'var(--accent-2)' : 'var(--accent)',
         highlight: k === todayKey,
         title: U.weekday(d) + ', ' + U.dateLabel(d) + ' — ' + U.human(v) + (goal && v >= goal ? ' ✓ цель' : ''),
       });

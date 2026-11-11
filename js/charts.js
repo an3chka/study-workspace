@@ -44,6 +44,7 @@
     const r = 52, c = 2 * Math.PI * r;
     const f = Math.max(0, Math.min(1, frac));
     return '<svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Прогресс ' + Math.round(f * 100) + '%">' +
+      '<defs><linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4a3c7"/><stop offset="1" stop-color="#8fb7f5"/></linearGradient></defs>' +
       '<circle class="ring-bg" cx="60" cy="60" r="' + r + '"/>' +
       (f > 0 ? '<circle class="ring-fg' + (f >= 1 ? ' done' : '') + '" cx="60" cy="60" r="' + r + '" stroke-dasharray="' + (c * f) + ' ' + c + '" transform="rotate(-90 60 60)"/>' : '') +
       '<foreignObject x="10" y="10" width="100" height="100"><div class="ring-inner">' + inner + '</div></foreignObject></svg>';

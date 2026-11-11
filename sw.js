@@ -1,6 +1,6 @@
 // Service worker: сохраняет файлы приложения, чтобы оно открывалось без интернета.
 // При изменении файлов увеличь номер версии — тогда браузер скачает свежие.
-const CACHE = 'kabinet-v2';
+const CACHE = 'kabinet-v3';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/utils.js', 'js/store.js', 'js/audio.js', 'js/timer.js', 'js/charts.js', 'js/stats-data.js', 'js/insights.js',

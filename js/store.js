@@ -6,11 +6,11 @@
   const VERSION = 1;
 
   const DEFAULT_CATEGORIES = [
-    { id: 'lang', name: 'Языки', color: '#6c8cff' },
-    { id: 'study', name: 'Учёба', color: '#34b38a' },
-    { id: 'hobby', name: 'Хобби', color: '#f29e4c' },
-    { id: 'sport', name: 'Спорт', color: '#e5607a' },
-    { id: 'other', name: 'Другое', color: '#9b8afb' },
+    { id: 'lang', name: 'Языки', color: '#7fa8f0' },
+    { id: 'study', name: 'Учёба', color: '#b49af0' },
+    { id: 'hobby', name: 'Хобби', color: '#f2a0c4' },
+    { id: 'sport', name: 'Спорт', color: '#72c9a8' },
+    { id: 'other', name: 'Другое', color: '#f5b98a' },
   ];
 
   function defaults() {

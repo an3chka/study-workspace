@@ -174,7 +174,7 @@
     e.preventDefault();
     const name = U.formData(e.target).name;
     if (!name) return;
-    const palette = ['#6c8cff', '#34b38a', '#f29e4c', '#e5607a', '#9b8afb', '#3fb6c8', '#d9b43b', '#c46bd6'];
+    const palette = ['#7fa8f0', '#f2a0c4', '#b49af0', '#72c9a8', '#f5b98a', '#8fd0e8', '#e8c46f', '#e59ad8'];
     S().categories.push({ id: U.uid(), name, color: palette[S().categories.length % palette.length] });
     Store.save(); App.render();
   });
