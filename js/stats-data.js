@@ -1,0 +1,83 @@
+// Подсчёты для статистики: суммы по дням, задачам, категориям, серия дней.
+(function () {
+  'use strict';
+
+  const Stats = {};
+
+  // Все записи + «живая» запись от запущенного таймера (чтобы прогресс рос на глазах).
+  Stats.sessions = function () {
+    const st = Store.state;
+    const list = st.sessions.slice();
+    const a = st.active;
+    if (a && !a.waiting && (a.mode === 'watch' || a.phase === 'work')) {
+      const sec = (Date.now() - a.start) / 1000;
+      if (sec > 0) list.push({ id: 'live', taskId: a.taskId, start: a.start, end: Date.now(), sec, live: true });
+    }
+    return list;
+  };
+
+  Stats.inRange = function (from, to, list) {
+    return (list || Stats.sessions()).filter((s) => s.start >= from && s.start < to);
+  };
+
+  Stats.sum = (list) => list.reduce((a, s) => a + s.sec, 0);
+
+  Stats.byDay = function (list) {
+    const m = {};
+    (list || Stats.sessions()).forEach((s) => { const k = U.dayKey(s.start); m[k] = (m[k] || 0) + s.sec; });
+    return m;
+  };
+
+  Stats.byTask = function (list) {
+    const m = {};
+    list.forEach((s) => { m[s.taskId] = (m[s.taskId] || 0) + s.sec; });
+    return Object.keys(m).map((id) => {
+      const t = Store.task(id);
+      const c = Store.category(t && t.categoryId);
+      return { id, name: t ? t.name : 'Удалённая задача', color: c.color, cat: c.name, sec: m[id] };
+    }).sort((a, b) => b.sec - a.sec);
+  };
+
+  Stats.byCategory = function (list) {
+    const m = {};
+    list.forEach((s) => {
+      const t = Store.task(s.taskId);
+      const cid = t ? t.categoryId : 'none';
+      m[cid] = (m[cid] || 0) + s.sec;
+    });
+    return Object.keys(m).map((id) => {
+      const c = Store.category(id);
+      return { id, name: c.name, color: c.color, sec: m[id] };
+    }).sort((a, b) => b.sec - a.sec);
+  };
+
+  Stats.goalSec = () => Math.max(0, Store.state.settings.dailyGoalMin) * 60;
+
+  // День «засчитан», если набрана дневная цель (или хоть что-то, если цель = 0).
+  function dayOk(sec, goal) { return goal > 0 ? sec >= goal : sec >= 60; }
+
+  Stats.streak = function () {
+    const byDay = Stats.byDay();
+    const goal = Stats.goalSec();
+    const today = U.startOfDay(Date.now());
+    let cur = 0;
+    let d = today;
+    // Сегодняшний день не обрывает серию, если цель ещё не набрана.
+    if (!dayOk(byDay[U.dayKey(d)] || 0, goal)) d = U.addDays(d, -1);
+    while (dayOk(byDay[U.dayKey(d)] || 0, goal)) { cur++; d = U.addDays(d, -1); }
+
+    // Лучшая серия за всё время
+    const keys = Object.keys(byDay).filter((k) => dayOk(byDay[k], goal)).sort();
+    let best = 0, run = 0, prev = null;
+    keys.forEach((k) => {
+      const ts = new Date(k + 'T12:00:00').getTime();
+      run = prev !== null && U.dayKey(U.addDays(prev, 1)) === k ? run + 1 : 1;
+      best = Math.max(best, run);
+      prev = ts;
+    });
+    const todayDone = dayOk(byDay[U.dayKey(today)] || 0, goal);
+    return { current: cur, best: Math.max(best, cur), todayDone };
+  };
+
+  window.Stats = Stats;
+})();

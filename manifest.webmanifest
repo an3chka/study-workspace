@@ -1,0 +1,17 @@
+{
+  "name": "Рабочий кабинет",
+  "short_name": "Кабинет",
+  "description": "Таймер задач, статистика, фоновые звуки, карточки и цели хобби",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#11131a",
+  "theme_color": "#151821",
+  "lang": "ru",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

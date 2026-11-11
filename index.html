@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Рабочий кабинет</title>
+  <meta name="description" content="Личный рабочий кабинет: таймер задач, статистика, фоновые звуки, карточки для языков и цели хобби.">
+  <meta name="theme-color" content="#151821">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Тема ставится сразу, чтобы страница не «мигала» светлым.
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('study-workspace-v1') || '{}');
+        var t = s.settings && s.settings.theme;
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-icon">📚</span><span>Рабочий кабинет</span></div>
+      <nav class="nav" id="nav">
+        <a href="#/" data-route="home"><span class="ni">⏱️</span><span>Сегодня</span></a>
+        <a href="#/stats" data-route="stats"><span class="ni">📊</span><span>Статистика</span></a>
+        <a href="#/cards" data-route="cards"><span class="ni">🗂️</span><span>Языки</span></a>
+        <a href="#/hobby" data-route="hobby"><span class="ni">🎨</span><span>Хобби</span></a>
+        <a href="#/settings" data-route="settings"><span class="ni">⚙️</span><span>Настройки</span></a>
+      </nav>
+      <div class="sidebar-foot" id="sidebar-streak"></div>
+    </aside>
+
+    <main class="main">
+      <div id="view" class="view"></div>
+    </main>
+  </div>
+
+  <!-- Нижняя панель: мини-таймер и плеер. Она не перерисовывается при смене раздела. -->
+  <div class="dock" id="dock">
+    <div class="dock-timer" id="dock-timer" hidden></div>
+    <div class="player" id="player">
+      <button class="icon-btn play-btn" id="player-toggle" title="Включить/выключить звук" aria-label="Включить или выключить звук">▶</button>
+      <button class="player-info" id="player-open" title="Открыть микшер звуков">
+        <span class="player-title" id="player-title">Фоновые звуки</span>
+        <span class="player-sub" id="player-sub">нажми, чтобы выбрать</span>
+      </button>
+      <input type="range" class="player-vol" id="player-vol" min="0" max="1" step="0.01" aria-label="Общая громкость">
+      <button class="icon-btn" id="player-mixer" title="Микшер" aria-label="Открыть микшер">🎚️</button>
+    </div>
+    <div class="mixer" id="mixer" hidden></div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div id="modal-root"></div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/timer.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/stats-data.js"></script>
+  <script src="js/views/home.js"></script>
+  <script src="js/views/stats.js"></script>
+  <script src="js/views/cards.js"></script>
+  <script src="js/views/read.js"></script>
+  <script src="js/views/hobby.js"></script>
+  <script src="js/views/settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
