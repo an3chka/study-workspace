@@ -100,6 +100,7 @@
         (c.provider === 'custom' ? '<label>Адрес (OpenAI-совместимый)<input name="baseUrl" value="' + U.esc(c.baseUrl || '') + '" placeholder="http://localhost:11434/v1"></label>' : '') +
         '<label>Ключ' + (c.provider === 'custom' ? ' (если нужен)' : '') + '<span class="inline-row"><input name="key" type="password" autocomplete="off" value="' + U.esc(c.key || '') + '" placeholder="вставь ключ сюда">' +
           '<button type="button" class="btn" data-s="ai-show">' + I('eye') + '</button></span></label>' +
+        backupHTML(c) +
         (AI.keyProblem() ? '<div class="ai-status bad">' + I('alert') + '<span>' + U.esc(AI.keyProblem()) + '</span></div>' : '') +
         '<label>Модель<span class="inline-row"><select name="model"><option value="">' + U.esc(AI.model()) + ' (по умолчанию)</option>' +
           (c.models || []).map((m) => '<option value="' + U.esc(m.id) + '"' + (m.id === c.model ? ' selected' : '') + '>' + U.esc(m.label) + '</option>').join('') +
@@ -107,9 +108,20 @@
         '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
         (used ? '<span class="muted small">запросов сегодня: ' + used + '</span>' : '') + '</div>' +
         (c.lastTest ? '<div class="ai-status ' + (c.lastTest.ok ? 'ok' : 'bad') + '">' + I(c.lastTest.ok ? 'check-circle' : 'alert') +
-          '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
+          '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' + (c.lastTest.via ? '. Ответил запасной ' + U.esc(c.lastTest.via) + ' — основной сейчас недоступен (проверь VPN).' : '') : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
           ' <small class="muted">(' + U.timeLabel(c.lastTest.ts) + ')</small></span></div>' : '') +
       '</form></section>';
+  }
+
+  // Поле для запасного ключа: если основной сервис не ответит, кабинет спросит запасной
+  function backupHTML(c) {
+    if (c.provider === 'custom') return '';
+    const other = c.provider === 'gemini' ? 'openrouter' : 'gemini';
+    const k = (c.keys || {})[other] || '';
+    return '<div class="backup-key"><label>Запасной ключ ' + (other === 'openrouter' ? 'OpenRouter (работает без VPN)' : 'Gemini') + ' — необязательно' +
+      '<input name="backupKey" type="password" autocomplete="off" value="' + U.esc(k) + '" placeholder="' + (other === 'openrouter' ? 'sk-or-v1-…' : 'AIza… или AQ.…') + '"></label>' +
+      '<p class="muted small">Если ' + AI.PROVIDERS[c.provider].name.split(' ')[0] + ' не ответит (нет VPN, лимит), кабинет сам спросит ' + AI.PROVIDERS[other].name.split(' ')[0] + '.' +
+      (other === 'openrouter' ? ' Ключ: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/settings/keys</a> → «New key».' : '') + '</p></div>';
   }
 
   function download(name, text) {
@@ -129,6 +141,12 @@
       const c = AI.cfg();
       c.lastTest = null;
       if (t.name === 'provider') { AI.setProvider(t.value); App.render(); return; }
+      if (t.name === 'backupKey') {
+        c.keys = c.keys || {};
+        c.keys[c.provider === 'gemini' ? 'openrouter' : 'gemini'] = t.value.trim();
+        Store.save(); App.render();
+        return;
+      }
       c[t.name] = t.value.trim();
       if (t.name === 'key') { c.autoModel = ''; c.keys = c.keys || {}; c.keys[c.provider] = c.key; }
       Store.save();
@@ -193,17 +211,17 @@
     }
     if (b.dataset.s === 'ai-test') {
       const c = AI.cfg();
-      b.disabled = true;
-      b.innerHTML = '<span class="spinner"></span> проверяю…';
-      try {
-        const r = await AI.test();
-        c.lastTest = { ok: true, msg: String(r).slice(0, 60), ts: Date.now() };
-        U.toast('Нейросеть отвечает — всё работает!');
-      } catch (err) {
-        c.lastTest = { ok: false, msg: err.message, ts: Date.now() };
-      }
-      Store.save();
-      App.render();
+      const r = await AI.run(b, async () => {
+        try {
+          const res = await AI.test();
+          c.lastTest = { ok: true, msg: String(res).slice(0, 60), via: AI.lastProvider !== c.provider ? AI.PROVIDERS[AI.lastProvider].name.split(' ')[0] : '', ts: Date.now() };
+          U.toast('Нейросеть отвечает — всё работает!');
+        } catch (err) {
+          c.lastTest = { ok: false, msg: err.message, ts: Date.now() };
+        }
+        return true;
+      });
+      if (r) { Store.save(); App.render(); }
     }
     if (b.dataset.s === 'export') {
       S().settings.lastBackup = Date.now();

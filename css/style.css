@@ -913,3 +913,5 @@ h2.h-ic .ic { width: 20px; height: 20px; }
 .auto-timer .ic { width: 14px; height: 14px; color: var(--accent); }
 .auto-timer .link-btn { margin: 0; font-size: .85rem; }
 .ask-btns { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.backup-key { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--border); }
+.backup-key p { margin: 0; }

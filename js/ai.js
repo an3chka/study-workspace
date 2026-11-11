@@ -110,8 +110,37 @@
 
     // Отправить запрос. system — инструкция, prompt — текст (или массив сообщений {role, text}).
     // json: true — попросить ответ в JSON и сразу разобрать его.
+    // Запрос с запасным вариантом: если основной сервис не ответил,
+    // пробуем другой сервис, для которого тоже сохранён ключ.
     async ask(o) {
       if (AI._mock) { countUse(); const r = await AI._mock(o); return o.json ? (typeof r === 'string' ? parseJSON(r) : r) : r; }
+      const c = cfg();
+      AI.lastProvider = c.provider;
+      try {
+        return await AI.askOne(o);
+      } catch (err) {
+        const backup = AI.backupProvider();
+        if (!backup) throw err;
+        AI.status = 'переключаюсь на ' + PROVIDERS[backup].name.split(' ')[0] + '…';
+        try {
+          const r = await withProvider(backup, () => AI.askOne(o));
+          AI.lastProvider = backup;
+          if (!AI._warned) { AI._warned = true; U.toast(PROVIDERS[c.provider].name.split(' ')[0] + ' не ответил — ответ дал запасной ' + PROVIDERS[backup].name.split(' ')[0] + '.'); }
+          return r;
+        } catch (err2) {
+          throw new Error(err.message + ' Запасной вариант тоже не ответил: ' + err2.message);
+        }
+      }
+    },
+
+    // Запасной сервис — тот, у которого сохранён ключ (кроме текущего)
+    backupProvider() {
+      const c = cfg();
+      const keys = c.keys || {};
+      return ['openrouter', 'gemini'].find((p) => p !== c.provider && keys[p] && String(keys[p]).trim()) || '';
+    },
+
+    async askOne(o) {
       const c = cfg();
       if (!AI.ready()) throw new Error('Нейросеть не подключена. Открой Настройки → «Нейросеть».');
       const kp = AI.keyProblem();
@@ -128,19 +157,24 @@
         if (o.json) body.generationConfig.responseMimeType = 'application/json';
         // Перебираем модели (названия у Google меняются) и адреса (ключи AQ.… могут работать через Vertex AI)
         const models = c.model ? [c.model] : await geminiCandidates();
-        let data = null, firstErr = null, lastErr = null;
+        let data = null, firstErr = null, lastErr = null, timeouts = 0;
+        const deadline = Date.now() + (o.json ? 120000 : 45000); // общий предел на все попытки
         outer: for (const model of models) {
           for (const ep of geminiEndpoints(model)) {
-            AI.status = 'спрашиваю ' + model + '…';
+            if (Date.now() > deadline) { firstErr = firstErr || new Error('Google слишком долго не отвечает. Проверь VPN и попробуй ещё раз.'); break outer; }
+            AI.status = 'пробую ' + model + (ep.kind === 'vertex' ? ' (Vertex)' : '') + '…';
             try {
-              data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) });
+              data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) },
+                o.json ? 60000 : 12000);
               if (c.endpoint !== ep.kind || (!c.model && c.autoModel !== model)) { c.endpoint = ep.kind; if (!c.model) c.autoModel = model; Store.saveSoon(); }
               break outer;
             } catch (e) {
               lastErr = e;
+              // Google молчит или недоступен — дальше перебирать бессмысленно
+              if (/слишком долго|Нет связи/.test(e.message)) { timeouts++; firstErr = new Error('Google не отвечает (скорее всего, VPN не пропускает запросы к Google API).'); break outer; }
               if (!/Модель не найдена/.test(e.message)) firstErr = firstErr || e;
               // ключ, регион, связь — дальше перебирать бессмысленно
-              if (/регионе|Нет связи|Ключ не подошёл/.test(e.message) && !/^AQ\./.test(String(c.key))) break outer;
+              if (/регионе/.test(e.message) || (/Ключ не подошёл/.test(e.message) && !/^AQ\./.test(String(c.key)))) break outer;
             }
           }
           if (c.autoModel === model) c.autoModel = '';
@@ -200,7 +234,7 @@
       const c = cfg();
       if (c.provider === 'gemini') {
         if (!c.key) throw new Error('Сначала вставь ключ');
-        const data = await request('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': c.key } });
+        const data = await request('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': c.key } }, 8000);
         return (data.models || [])
           .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini/.test(m.name) && !/(image|tts|audio|live|embedding|vision|thinking-exp)/.test(m.name))
           .map((m) => ({ id: m.name.replace(/^models\//, ''), label: m.displayName || m.name }))
@@ -229,6 +263,7 @@
   async function geminiCandidates() {
     const c = cfg();
     const out = [];
+    AI.status = 'спрашиваю у Google список моделей…';
     if (c.autoModel) out.push(c.autoModel);
     try {
       const list = await AI.listModels();
@@ -244,6 +279,20 @@
     const vertex = { kind: 'vertex', url: 'https://aiplatform.googleapis.com/v1/publishers/google/models/' + encodeURIComponent(model) + ':generateContent' };
     if (!/^AQ\./.test(String(c.key || ''))) return [studio];
     return c.endpoint === 'vertex' ? [vertex, studio] : [studio, vertex];
+  }
+
+  // Временно выполнить запрос от имени другого сервиса (своя модель, свой ключ)
+  async function withProvider(p, fn) {
+    const c = cfg();
+    c.autoBy = c.autoBy || {};
+    c.autoBy[c.provider] = c.autoModel || '';
+    const saved = { provider: c.provider, key: c.key, model: c.model, autoModel: c.autoModel, endpoint: c.endpoint };
+    c.provider = p; c.key = (c.keys || {})[p] || ''; c.model = ''; c.autoModel = c.autoBy[p] || ''; c.endpoint = '';
+    try { return await fn(); } finally {
+      c.autoBy[p] = c.autoModel || '';
+      Object.assign(c, saved);
+      Store.saveSoon();
+    }
   }
 
   // Для OpenRouter: последняя сработавшая модель + лучшие быстрые бесплатные + общий автовыбор.
