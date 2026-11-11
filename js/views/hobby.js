@@ -7,7 +7,9 @@
   const App = window.App = window.App || {};
   App.views = App.views || {};
 
-  const EMOJI = ['🎨', '🎸', '📖', '🧶', '📷', '🏃‍♀️', '🧘‍♀️', '🍳', '🌱', '✍️', '🎮', '💃'];
+  // Иконки для целей (название иконки из js/icons.js)
+  const ICONS = ['palette', 'music', 'book', 'yarn', 'camera', 'activity', 'heart', 'utensils', 'leaf', 'pen', 'gamepad', 'star', 'mountain', 'target'];
+  const iconOf = (h) => (h.icon && I.names.includes(h.icon) ? h.icon : 'target');
   let root = null;
   let showDone = false;
 
@@ -55,9 +57,9 @@
       deadline = '<span class="tag' + (left < 0 ? ' warn' : '') + '">' + (left < 0 ? 'срок прошёл' : left === 0 ? 'срок сегодня' : 'ещё ' + left + ' ' + U.plural(left, ['день', 'дня', 'дней'])) + '</span>';
     }
     return '<article class="card hobby' + (h.done ? ' done' : '') + '">' +
-      '<div class="hobby-head"><span class="hobby-emoji">' + U.esc(h.emoji || '🎯') + '</span>' +
+      '<div class="hobby-head"><span class="hobby-emoji">' + I(iconOf(h)) + '</span>' +
       '<div><h2>' + U.esc(h.name) + '</h2>' + (h.note ? '<p class="muted small">' + U.esc(h.note) + '</p>' : '') + '</div>' +
-      '<button class="icon-btn" data-h="edit" data-id="' + h.id + '" aria-label="Изменить цель">⋯</button></div>' +
+      '<button class="icon-btn" data-h="edit" data-id="' + h.id + '" aria-label="Изменить цель">' + I('more') + '</button></div>' +
       '<div class="hobby-progress"><div class="progress"><span style="width:' + pct + '%"></span></div>' +
       '<span class="muted small">' + (h.kind === 'steps' ? p.value + ' из ' + p.target + ' шагов' : fmt(p.value) + ' из ' + fmt(p.target) + ' ' + U.esc(h.unit || '')) + ' · ' + pct + '%</span></div>' +
       '<div class="hobby-tags">' + deadline + (daysAgo !== null && !h.done ? '<span class="tag">' + (daysAgo === 0 ? 'было сегодня' : daysAgo === 1 ? 'было вчера' : daysAgo + ' дн. назад') + '</span>' : '') + '</div>' +
@@ -66,7 +68,7 @@
         '</ul><form class="add-step" data-hobby="' + h.id + '"><input name="text" placeholder="Новый шаг…" maxlength="120" aria-label="Новый шаг"><button class="btn small">+</button></form>'
         : (recent.length ? '<ul class="hobby-log">' + recent.map((l) => '<li><span class="muted">' + U.dateLabel(l.ts) + '</span> <b>+' + fmt(l.amount) + '</b> ' + U.esc(l.note || '') + '</li>').join('') + '</ul>' : '') +
           (h.done ? '' : '<button class="btn primary" data-h="log" data-id="' + h.id + '">+ Отметить прогресс</button>')) +
-      (h.done ? '<p class="muted small">🏆 Достигнуто ' + (h.doneAt ? U.dateLabel(h.doneAt) : '') + '</p>' : '') +
+      (h.done ? '<p class="muted small done-line">' + I('trophy') + ' Достигнуто ' + (h.doneAt ? U.dateLabel(h.doneAt) : '') + '</p>' : '') +
       '</article>';
   }
 
@@ -77,19 +79,19 @@
     if (!h.done && p.target > 0 && p.value >= p.target) {
       h.done = true;
       h.doneAt = Date.now();
-      U.toast('🏆 Цель «' + h.name + '» достигнута! Поздравляю!');
+      U.toast('Цель «' + h.name + '» достигнута! Поздравляю!');
       if (window.Sound) Sound.chime();
     }
   }
 
   function hobbyModal(h) {
     const isNew = !h;
-    h = h || { name: '', kind: 'number', target: 10, unit: '', emoji: '🎨', note: '', deadline: '' };
+    h = h || { name: '', kind: 'number', target: 10, unit: '', icon: 'palette', note: '', deadline: '' };
     App.modal({
       title: isNew ? 'Новая цель' : 'Цель',
       body:
         '<label>Название<input name="name" required maxlength="80" value="' + U.esc(h.name) + '" placeholder="например, Прочитать 12 книг"></label>' +
-        '<div class="emoji-pick">' + EMOJI.map((e) => '<label><input type="radio" name="emoji" value="' + e + '"' + (e === h.emoji ? ' checked' : '') + '><span>' + e + '</span></label>').join('') + '</div>' +
+        '<div class="emoji-pick">' + ICONS.map((e) => '<label title="' + e + '"><input type="radio" name="icon" value="' + e + '"' + (e === iconOf(h) ? ' checked' : '') + '><span>' + I(e) + '</span></label>').join('') + '</div>' +
         '<label>Как считать прогресс<select name="kind"' + (isNew ? '' : ' disabled') + '>' +
           '<option value="number"' + (h.kind === 'number' ? ' selected' : '') + '>Числом (книги, страницы, часы, рисунки…)</option>' +
           '<option value="steps"' + (h.kind === 'steps' ? ' selected' : '') + '>По шагам (чек-лист)</option></select></label>' +
@@ -97,7 +99,7 @@
         '<label>Единица<input name="unit" maxlength="20" value="' + U.esc(h.unit || '') + '" placeholder="книг"></label></div>' +
         (isNew ? '<label data-only="steps">Шаги (каждый с новой строки)<textarea name="steps" rows="4" placeholder="Купить пряжу&#10;Связать образец&#10;Связать шарф"></textarea></label>' : '') +
         '<label>Срок (необязательно)<input name="deadline" type="date" value="' + U.esc(h.deadline || '') + '"></label>' +
-        '<label>Заметка<input name="note" maxlength="140" value="' + U.esc(h.note || '') + '" placeholder="зачем мне это 💛"></label>',
+        '<label>Заметка<input name="note" maxlength="140" value="' + U.esc(h.note || '') + '" placeholder="зачем мне это"></label>',
       extra: isNew ? '' :
         '<button type="button" class="btn ghost danger-text" data-x="del">Удалить</button>' +
         '<button type="button" class="btn ghost" data-x="done">' + (h.done ? 'Вернуть в работу' : 'Отметить достигнутой') + '</button>',
@@ -116,7 +118,7 @@
         if (dn) dn.addEventListener('click', () => {
           h.done = !h.done; h.doneAt = h.done ? Date.now() : null;
           Store.save(); close(); App.render();
-          if (h.done) U.toast('🏆 Отлично!');
+          if (h.done) U.toast('Отлично!');
         });
       },
       onSubmit(d) {
@@ -125,7 +127,7 @@
           if (d.kind === 'steps') h.steps = String(d.steps || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean).map((text) => ({ id: U.uid(), text, done: false }));
           S().hobbies.push(h);
         }
-        h.name = d.name; h.emoji = d.emoji || '🎯'; h.note = d.note; h.deadline = d.deadline;
+        h.name = d.name; h.icon = d.icon || 'target'; h.note = d.note; h.deadline = d.deadline;
         if (h.kind !== 'steps') { h.target = Number(d.target) || 1; h.unit = d.unit; }
         Store.save(); App.render();
       },
@@ -134,14 +136,14 @@
 
   function logModal(h) {
     App.modal({
-      title: h.emoji + ' ' + h.name,
+      title: h.name,
       body:
         '<div class="row"><label>Сколько добавить' + (h.unit ? ' (' + U.esc(h.unit) + ')' : '') + '<input name="amount" type="number" step="any" min="0.01" value="1" required></label>' +
         '<label>День<input name="day" type="date" value="' + U.dayKey(Date.now()) + '" max="' + U.dayKey(Date.now()) + '"></label></div>' +
         '<label>Что сделала (необязательно)<input name="note" maxlength="140" placeholder="например, дочитала «Мастера и Маргариту»"></label>' +
         (h.log.length ? '<details><summary>История (' + h.log.length + ')</summary><ul class="hobby-log full">' +
           h.log.slice().sort((a, b) => b.ts - a.ts).map((l) => '<li><span class="muted">' + U.dateLabel(l.ts) + '</span> <b>+' + fmt(l.amount) + '</b> ' + U.esc(l.note || '') +
-          ' <button type="button" class="icon-btn small" data-del-log="' + l.id + '" aria-label="Удалить запись">✕</button></li>').join('') + '</ul></details>' : ''),
+          ' <button type="button" class="icon-btn small" data-del-log="' + l.id + '" aria-label="Удалить запись">' + I('x') + '</button></li>').join('') + '</ul></details>' : ''),
       submit: 'Отметить',
       onOpen(form, close) {
         form.querySelectorAll('[data-del-log]').forEach((b) => b.addEventListener('click', () => {
@@ -156,7 +158,7 @@
         h.log.push({ id: U.uid(), ts: isToday ? Date.now() : new Date(d.day + 'T12:00:00').getTime(), amount, note: d.note });
         checkDone(h);
         Store.save(); App.render();
-        if (!h.done) U.toast('Записано! Ещё шаг к цели 💪');
+        if (!h.done) U.toast('Записано! Ещё шаг к цели');
       },
     });
   }

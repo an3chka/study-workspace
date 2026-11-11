@@ -49,8 +49,8 @@
       '<header class="page-head"><div><h1>План дня</h1><p class="muted">Расписание по времени — отмечай, что сделано</p></div></header>' +
 
       '<div class="card stats-bar">' +
-        '<div class="period-nav"><button class="icon-btn" data-pl="prev" aria-label="Предыдущий день">‹</button><b>' + U.esc(title) + '</b>' +
-        '<button class="icon-btn" data-pl="next" aria-label="Следующий день">›</button></div>' +
+        '<div class="period-nav"><button class="icon-btn" data-pl="prev" aria-label="Предыдущий день">' + I('chevron-left') + '</button><b>' + U.esc(title) + '</b>' +
+        '<button class="icon-btn" data-pl="next" aria-label="Следующий день">' + I('chevron-right') + '</button></div>' +
         (dayOffset !== 0 ? '<button class="btn small" data-pl="today">К сегодняшнему дню</button>' : '') +
         (sum.total ? '<div class="plan-progress"><div class="progress"><span style="width:' + pct + '%"></span></div><span class="muted small">' + sum.done + ' из ' + sum.total + ' · ' + U.human(sum.plannedMin * 60) + ' запланировано</span></div>' : '') +
       '</div>' +
@@ -75,8 +75,8 @@
                 (tracked ? '<span>записано ' + U.human(tracked) + '</span>' : '') + '</div>' +
             '</div>' +
             '<div class="tl-actions">' +
-              (task && isToday ? '<button class="icon-btn" data-pl="' + (running ? 'stop' : 'start') + '" data-id="' + b.id + '" aria-label="' + (running ? 'Остановить таймер' : 'Запустить таймер') + '">' + (running ? '■' : '▶') + '</button>' : '') +
-              '<button class="icon-btn" data-pl="edit" data-id="' + b.id + '" aria-label="Изменить блок">✎</button>' +
+              (task && isToday ? '<button class="icon-btn" data-pl="' + (running ? 'stop' : 'start') + '" data-id="' + b.id + '" aria-label="' + (running ? 'Остановить таймер' : 'Запустить таймер') + '">' + (running ? I('stop') : I('play')) + '</button>' : '') +
+              '<button class="icon-btn" data-pl="edit" data-id="' + b.id + '" aria-label="Изменить блок">' + I('pencil') + '</button>' +
             '</div></li>';
         }).join('') + '</ol>' :
           '<div class="empty-state"><p>На этот день ничего не запланировано.</p>' +
@@ -95,7 +95,7 @@
           (list.length ? '<button class="btn small ghost danger-text" data-pl="clear">Очистить день</button>' : '') +
         '</div>' +
       '</section>' +
-      '<p class="hint muted small">Если название совпадает с задачей из «Сегодня», блок можно запустить таймером ▶ — и время запишется в статистику.</p>';
+      '<p class="hint muted small">Если название совпадает с задачей из «Сегодня», блок можно запустить таймером — и время запишется в статистику.</p>';
   }
 
   function findTask(title) {
@@ -170,7 +170,7 @@
     b.done = e.target.checked;
     Store.save();
     const sum = App.planSummary(b.day);
-    if (b.done && sum.total && sum.done === sum.total) { U.toast('🎉 Весь план на день выполнен!'); if (window.Sound) Sound.chime(); }
+    if (b.done && sum.total && sum.done === sum.total) { U.toast('Весь план на день выполнен!'); if (window.Sound) Sound.chime(); }
     App.render();
   });
 

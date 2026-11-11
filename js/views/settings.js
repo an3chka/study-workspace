@@ -19,7 +19,7 @@
       '<div class="grid-2">' +
       '<section class="card"><h2>Цель и таймер</h2><form id="settings-form" class="settings-form">' +
         '<label>Дневная цель, минут<input type="number" name="dailyGoalMin" min="0" max="1440" value="' + st.dailyGoalMin + '"></label>' +
-        '<p class="muted small">День засчитывается в серию 🔥, когда набрана цель.</p>' +
+        '<p class="muted small">День засчитывается в серию, когда набрана цель.</p>' +
         '<div class="row3">' +
           '<label>Помидор, мин<input type="number" name="pomoWork" min="1" max="180" value="' + st.pomoWork + '"></label>' +
           '<label>Перерыв<input type="number" name="pomoBreak" min="1" max="60" value="' + st.pomoBreak + '"></label>' +
@@ -29,7 +29,7 @@
         '<label class="check"><input type="checkbox" name="pomoAutoBreak"' + (st.pomoAutoBreak ? ' checked' : '') + '> Перерыв начинается сам после помидора</label>' +
         '<label>Сигнал в конце помидора<span class="inline-row"><select name="chimeSound">' +
           Sound.chimes.map(([v, n]) => '<option value="' + v + '"' + (st.chimeSound === v ? ' selected' : '') + '>' + n + '</option>').join('') +
-        '</select><button type="button" class="btn" data-s="test-chime">▶ Прослушать</button></span></label>' +
+        '</select><button type="button" class="btn" data-s="test-chime">' + I('play') + ' Прослушать</button></span></label>' +
         '<label class="check"><input type="checkbox" name="autoTranslate"' + (st.autoTranslate ? ' checked' : '') + '> Автоперевод слов в «Чтении» (бесплатный сервис MyMemory, ему отправляется только слово)</label>' +
         '<label>Новых карточек в день (на колоду)<input type="number" name="newCardsPerDay" min="1" max="200" value="' + st.newCardsPerDay + '"></label>' +
         '<label>Тема<select name="theme">' +
@@ -43,7 +43,7 @@
           return '<li><input type="color" value="' + c.color + '" data-cat-color="' + c.id + '" aria-label="Цвет категории ' + U.esc(c.name) + '">' +
             '<input value="' + U.esc(c.name) + '" maxlength="30" data-cat-name="' + c.id + '" aria-label="Название категории">' +
             '<span class="muted small">' + n + ' ' + U.plural(n, ['задача', 'задачи', 'задач']) + '</span>' +
-            '<button class="icon-btn small" data-s="del-cat" data-id="' + c.id + '" aria-label="Удалить категорию"' + (S().categories.length <= 1 ? ' disabled' : '') + '>✕</button></li>';
+            '<button class="icon-btn small" data-s="del-cat" data-id="' + c.id + '" aria-label="Удалить категорию"' + (S().categories.length <= 1 ? ' disabled' : '') + '>' + I('x') + '</button></li>';
         }).join('') + '</ul>' +
         '<form id="add-cat" class="add-task"><input name="name" placeholder="Новая категория" maxlength="30" required aria-label="Новая категория"><button class="btn">Добавить</button></form>' +
         (archived.length ? '<h3>Архив задач</h3><ul class="archive">' + archived.map((t) =>
@@ -55,21 +55,21 @@
         '<p>Все данные хранятся <b>только в этом браузере</b> на этом устройстве (' + counts + '). ' +
         'На другом устройстве или в другом браузере будет пустой кабинет — перенести данные можно файлом.</p>' +
         '<div class="row-btns">' +
-          '<button class="btn primary" data-s="export">⬇ Экспорт в JSON</button>' +
-          '<label class="btn">⬆ Импорт из JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label>' +
+          '<button class="btn primary" data-s="export">' + I('download') + ' Экспорт в JSON</button>' +
+          '<label class="btn">' + I('upload') + ' Импорт из JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label>' +
           '<button class="btn ghost danger-text" data-s="reset">Стереть всё</button>' +
         '</div>' +
         '<p class="muted small">' + (st.lastBackup ? 'Последний экспорт: ' + U.dateLabel(st.lastBackup) + ' ' + new Date(st.lastBackup).getFullYear() : 'Резервных копий ещё не было') + '. Импорт заменяет текущие данные содержимым файла.</p>' +
       '</section>' +
 
       '<div class="grid-2">' +
-      '<section class="card"><h2>📱 На телефон</h2>' +
+      '<section class="card"><h2 class="h-ic">' + I('phone') + ' На телефон</h2>' +
         '<p>Открой сайт в браузере телефона и добавь на главный экран:</p>' +
         '<ul class="plain"><li><b>Android (Chrome):</b> меню ⋮ → «Добавить на гл. экран» / «Установить приложение».</li>' +
         '<li><b>iPhone (Safari):</b> кнопка «Поделиться» → «На экран «Домой»».</li></ul>' +
         '<p class="muted small">После этого кабинет открывается как приложение и работает без интернета.</p>' +
       '</section>' +
-      '<section class="card"><h2>⌨️ Горячие клавиши</h2><ul class="plain keys">' +
+      '<section class="card"><h2 class="h-ic">' + I('keyboard') + ' Горячие клавиши</h2><ul class="plain keys">' +
         '<li><kbd>Пробел</kbd> старт/стоп последней задачи (раздел «Сегодня»)</li>' +
         '<li><kbd>M</kbd> включить/выключить звук</li>' +
         '<li><kbd>1</kbd>–<kbd>7</kbd> переход между разделами</li>' +

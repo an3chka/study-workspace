@@ -65,8 +65,8 @@
 
   function tabs(active) {
     return '<div class="seg lang-tabs" role="tablist">' +
-      '<a role="tab" class="' + (active === 'cards' ? 'on' : '') + '" href="#/cards">🗂️ Карточки</a>' +
-      '<a role="tab" class="' + (active === 'read' ? 'on' : '') + '" href="#/read">📖 Чтение</a></div>';
+      '<a role="tab" class="' + (active === 'cards' ? 'on' : '') + '" href="#/cards">' + I('cards') + ' Карточки</a>' +
+      '<a role="tab" class="' + (active === 'read' ? 'on' : '') + '" href="#/read">' + I('book') + ' Чтение</a></div>';
   }
   App.langTabs = tabs;
 
@@ -126,7 +126,7 @@
       '<article class="card reader' + (showUnknown ? ' show-unknown' : '') + '" id="reader" lang="' + U.esc((t.lang || '').split('-')[0]) + '">' + html + '</article>' +
       '<div class="reader-foot">' +
         '<p class="muted small">Нажми на слово, чтобы перевести и добавить в карточки. Можно выделить несколько слов — добавится фраза.</p>' +
-        (s.unknown ? '<button class="btn" data-r="all-known">✓ Я знаю все неотмеченные слова (' + s.unknown + ')</button>' : '') +
+        (s.unknown ? '<button class="btn" data-r="all-known">' + I('check') + ' Я знаю все неотмеченные слова (' + s.unknown + ')</button>' : '') +
       '</div>';
 
     const reader = el.querySelector('#reader');
@@ -178,25 +178,25 @@
     pop.setAttribute('role', 'dialog');
     pop.innerHTML =
       '<div class="wp-head"><b>' + U.esc(o.display) + '</b>' +
-      (t.lang && 'speechSynthesis' in window ? '<button class="icon-btn small" data-wp="speak" aria-label="Произнести">🔊</button>' : '') +
+      (t.lang && 'speechSynthesis' in window ? '<button class="icon-btn small" data-wp="speak" aria-label="Произнести">' + I('volume') + '</button>' : '') +
       '<span class="tag ' + (entry ? ((entry.card.interval || 0) >= 21 ? 'ok' : 'warn-soft') : known ? 'ok' : 'new') + '">' +
         (entry ? ((entry.card.interval || 0) >= 21 ? 'выучено' : 'учу · ' + U.esc(entry.deck.name)) : known ? 'знаю' : 'новое') + '</span>' +
-      '<button class="icon-btn small wp-close" data-wp="close" aria-label="Закрыть">✕</button></div>' +
+      '<button class="icon-btn small wp-close" data-wp="close" aria-label="Закрыть">' + I('x') + '</button></div>' +
       '<form class="wp-form">' +
         '<input name="front" value="' + U.esc(entry ? entry.card.front : o.display.toLowerCase()) + '" aria-label="Слово для карточки" maxlength="200">' +
         '<input name="back" value="' + U.esc(entry ? entry.card.back : '') + '" placeholder="Перевод…" aria-label="Перевод" maxlength="300" required>' +
         (o.sentence ? '<label class="check small wp-ex"><input type="checkbox" name="useNote" checked> <span>пример: «' + U.esc(o.sentence) + '»</span></label>' : '') +
         '<div class="wp-more">' +
-          (o.sentence && src0 && src0 !== 'ru' ? '<button type="button" class="btn small" data-wp="sent">🌐 Перевести предложение</button>' : '') +
-          (src0 === 'en' && !/\s/.test(o.display) ? '<button type="button" class="btn small" data-wp="defs">📚 Значения слова</button>' : '') +
+          (o.sentence && src0 && src0 !== 'ru' ? '<button type="button" class="btn small" data-wp="sent">' + I('globe') + ' Перевести предложение</button>' : '') +
+          (src0 === 'en' && !/\s/.test(o.display) ? '<button type="button" class="btn small" data-wp="defs">' + I('book') + ' Значения слова</button>' : '') +
         '</div><div class="wp-info" hidden></div>' +
         (entry ? '' : decks.length ?
           '<select name="deckId" aria-label="Колода">' + decks.map((d) => '<option value="' + d.id + '"' + (d.id === preferred ? ' selected' : '') + '>в колоду: ' + U.esc(d.name) + '</option>').join('') + '<option value="__new">+ новая колода…</option></select>' :
           '<input type="hidden" name="deckId" value="__new"><p class="muted small">Колода «' + U.esc(t.title.slice(0, 30)) + '» создастся автоматически.</p>') +
         '<div class="wp-actions">' +
-          '<a class="btn small ghost" href="' + trUrl + '" target="_blank" rel="noopener noreferrer">Переводчик ↗</a>' +
+          '<a class="btn small ghost" href="' + trUrl + '" target="_blank" rel="noopener noreferrer">Переводчик ' + I('external') + '</a>' +
           '<span class="spacer"></span>' +
-          (entry ? '' : known ? '<button type="button" class="btn small" data-wp="unknown">Не знаю</button>' : '<button type="button" class="btn small" data-wp="known">✓ Знаю</button>') +
+          (entry ? '' : known ? '<button type="button" class="btn small" data-wp="unknown">Не знаю</button>' : '<button type="button" class="btn small" data-wp="known">' + I('check') + ' Знаю</button>') +
           '<button class="btn small primary">' + (entry ? 'Сохранить' : '+ В карточки') + '</button>' +
         '</div>' +
       '</form>';

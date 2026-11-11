@@ -114,7 +114,7 @@
     el.innerHTML =
       '<header class="page-head"><div><h1>Языки</h1><p class="muted">Карточки «слово — перевод» с интервальным повторением</p></div>' +
       '<button class="btn primary" data-c="new-deck">+ Колода</button></header>' + App.langTabs('cards') +
-      (decks.length ? '<p class="muted">' + (totalDue ? 'Сегодня к повторению: <b>' + totalDue + '</b> ' + U.plural(totalDue, ['карточка', 'карточки', 'карточек']) : 'На сегодня всё повторено ✨') + '</p>' : '') +
+      (decks.length ? '<p class="muted">' + (totalDue ? 'Сегодня к повторению: <b>' + totalDue + '</b> ' + U.plural(totalDue, ['карточка', 'карточки', 'карточек']) : 'На сегодня всё повторено') + '</p>' : '') +
       '<div class="deck-grid">' + (decks.length ? decks.map((d) => {
         const c = counts(d);
         const pct = c.all ? Math.round(c.learned / c.all * 100) : 0;
@@ -164,8 +164,8 @@
         '<li data-q="' + U.esc((cd.front + ' ' + cd.back).toLowerCase()) + '">' +
         '<div class="cl-text"><b>' + U.esc(cd.front) + '</b><span>' + U.esc(cd.back) + '</span>' + (cd.note ? '<small class="muted">' + U.esc(cd.note) + '</small>' : '') + '</div>' +
         '<span class="tag ' + (isNew(cd) ? 'new' : isLearned(cd) ? 'ok' : '') + '">' + nextLabel(cd) + '</span>' +
-        (d.lang ? '<button class="icon-btn small" data-c="speak" data-text="' + U.esc(cd.front) + '" aria-label="Произнести">🔊</button>' : '') +
-        '<button class="icon-btn small" data-c="edit-card" data-id="' + cd.id + '" aria-label="Изменить">✎</button></li>'
+        (d.lang ? '<button class="icon-btn small" data-c="speak" data-text="' + U.esc(cd.front) + '" aria-label="Произнести">' + I('volume') + '</button>' : '') +
+        '<button class="icon-btn small" data-c="edit-card" data-id="' + cd.id + '" aria-label="Изменить">' + I('pencil') + '</button></li>'
       ).join('') + '</ul>' : '<p class="empty">Добавь первые слова выше.</p>') +
       '</section>';
 
@@ -202,7 +202,7 @@
     const card = d && d.cards.find((c) => c.id === id);
     if (!card) {
       el.innerHTML =
-        '<div class="study-done card"><div class="big-emoji">🎉</div><h1>Готово!</h1>' +
+        '<div class="study-done card"><div class="big-emoji">' + I('trophy') + '</div><h1>Готово!</h1>' +
         '<p>Повторено карточек: <b>' + study.done + '</b>' + (study.again ? ', ошибок: ' + study.again : '') + '.</p>' +
         '<p class="muted">Следующие карточки появятся, когда подойдёт их время.</p>' +
         '<div class="row-btns"><button class="btn primary" data-c="back">К колодам</button></div></div>';
@@ -213,15 +213,15 @@
     const left = study.queue.length;
     el.innerHTML =
       '<div class="study">' +
-      '<div class="study-top"><button class="link-btn" data-c="back">✕ Закончить</button>' +
+      '<div class="study-top"><button class="link-btn" data-c="back">' + I('x') + ' Закончить</button>' +
       '<span class="muted">' + U.esc(d.name) + '</span><span class="muted">осталось ' + left + '</span></div>' +
       '<div class="progress"><span style="width:' + (study.done / (study.done + left) * 100) + '%"></span></div>' +
       '<div class="flash' + (study.flipped ? ' flipped' : '') + '" data-c="flip">' +
         (isNew(card) ? '<span class="tag new">новая</span>' : '') +
         '<div class="flash-front">' + U.esc(front) +
-          (d.lang && !study.reverse ? ' <button class="icon-btn small" data-c="speak" data-text="' + U.esc(card.front) + '" aria-label="Произнести">🔊</button>' : '') + '</div>' +
+          (d.lang && !study.reverse ? ' <button class="icon-btn small" data-c="speak" data-text="' + U.esc(card.front) + '" aria-label="Произнести">' + I('volume') + '</button>' : '') + '</div>' +
         (study.flipped ? '<div class="flash-back">' + U.esc(back) +
-          (d.lang && study.reverse ? ' <button class="icon-btn small" data-c="speak" data-text="' + U.esc(card.front) + '" aria-label="Произнести">🔊</button>' : '') + '</div>' +
+          (d.lang && study.reverse ? ' <button class="icon-btn small" data-c="speak" data-text="' + U.esc(card.front) + '" aria-label="Произнести">' + I('volume') + '</button>' : '') + '</div>' +
           (card.note ? '<div class="flash-note muted">' + U.esc(card.note) + '</div>' : '') : '<div class="flash-hint muted">нажми или <kbd>Пробел</kbd>, чтобы увидеть ответ</div>') +
       '</div>' +
       (study.flipped ?
@@ -265,7 +265,7 @@
       title: isNew ? 'Новая колода' : 'Настройки колоды',
       body:
         '<label>Название<input name="name" required maxlength="60" value="' + U.esc(d.name) + '" placeholder="например, Английский: путешествия"></label>' +
-        '<label>Язык (для озвучки 🔊)<select name="lang">' + LANGS.map(([c, n]) => '<option value="' + c + '"' + (c === d.lang ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
+        '<label>Язык (для озвучки)<select name="lang">' + LANGS.map(([c, n]) => '<option value="' + c + '"' + (c === d.lang ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
         '<label>Что показывать первым<select name="direction">' +
           [['fb', 'Слово → перевод'], ['bf', 'Перевод → слово'], ['mix', 'Вперемешку']].map(([v, n]) => '<option value="' + v + '"' + (v === d.direction ? ' selected' : '') + '>' + n + '</option>').join('') +
         '</select></label>',

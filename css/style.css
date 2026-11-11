@@ -690,3 +690,66 @@ label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--t
   .breath { height: 240px; }
   .breath-circle { width: 200px; height: 200px; }
 }
+
+/* ===== Иконки ===== */
+.ic { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
+.ic.inline { width: 1em; height: 1em; vertical-align: -0.12em; }
+.brand-icon { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--grad); color: #fff; box-shadow: 0 4px 12px rgba(217, 100, 156, .25); }
+.brand-icon .ic { width: 19px; height: 19px; }
+.ni { display: grid; place-items: center; width: 22px; color: var(--muted); }
+.ni .ic { width: 20px; height: 20px; }
+.nav a.active .ni { color: var(--accent); }
+.icon-btn .ic { width: 18px; height: 18px; }
+.icon-btn.small .ic { width: 15px; height: 15px; }
+.btn .ic { width: 1.05em; height: 1.05em; }
+.play .ic { width: 15px; height: 15px; }
+.play-btn .ic { width: 17px; height: 17px; }
+.h-ic { display: inline-flex; align-items: center; gap: 8px; }
+.h-ic > .ic { color: var(--accent); }
+h2.h-ic .ic { width: 20px; height: 20px; }
+.flame { display: inline-flex; align-items: center; gap: 4px; }
+.flame .ic { color: var(--accent); }
+.streak-mini { display: flex; align-items: center; gap: 6px; }
+.streak-mini .ic { color: var(--accent); width: 18px; height: 18px; }
+.mix-icon, .ex-icon, .hobby-emoji, .ins-icon {
+  display: grid; place-items: center; flex: none; border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); color: var(--accent);
+}
+.mix-icon { width: 38px; height: 38px; font-size: 1rem; }
+.mix-icon .ic { width: 20px; height: 20px; }
+.mix-row.on .mix-icon { background: var(--grad); color: #fff; }
+.ex-icon { width: 42px; height: 42px; }
+.ex-icon .ic { width: 22px; height: 22px; }
+.hobby-emoji { width: 46px; height: 46px; font-size: 1rem; }
+.hobby-emoji .ic { width: 24px; height: 24px; }
+.ins-icon { width: 30px; height: 30px; border-radius: 10px; background: var(--surface); }
+.ins-icon .ic { width: 17px; height: 17px; }
+.ins.good .ins-icon { color: var(--good); }
+.ins.warn .ins-icon { color: var(--warn); }
+.ins-go { display: grid; place-items: center; }
+.ins-go .ic { width: 18px; height: 18px; }
+.ins span:nth-child(2) { align-self: center; }
+.big-emoji .ic { width: 56px; height: 56px; color: var(--accent); }
+.ex-step-icon { width: 84px; height: 84px; border-radius: 26px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); color: var(--accent); }
+.ex-step-icon .ic { width: 40px; height: 40px; }
+.emoji-pick span .ic { width: 20px; height: 20px; color: var(--accent); }
+.mood-emoji { display: grid; place-items: center; color: var(--accent); }
+.mood-emoji .ic { width: 26px; height: 26px; }
+.scale-row span .ic { width: 26px; height: 26px; color: var(--muted); }
+.scale-row input:checked + span .ic { color: var(--accent); }
+.soft-alert { display: flex; gap: 10px; align-items: flex-start; }
+.soft-alert > .ic { color: var(--accent); width: 22px; height: 22px; margin-top: 2px; }
+.insights li.h-ic { display: flex; }
+.insights li.h-ic > .ic { width: 18px; height: 18px; }
+.done-line { display: flex; align-items: center; gap: 6px; }
+.done-line .ic { color: var(--accent); }
+.dock-timer .btn .ic { width: 12px; height: 12px; }
+.seg button { display: inline-flex; align-items: center; gap: 6px; }
+.seg a { display: inline-flex; align-items: center; gap: 6px; }
+.wp-actions .btn .ic { width: 14px; height: 14px; }
+.timer-label { display: inline-flex; align-items: center; gap: 6px; }
+.timer-label .ic { color: var(--accent); }
+@media (max-width: 760px) {
+  .ni { width: auto; }
+  .ni .ic { width: 22px; height: 22px; }
+}

@@ -47,7 +47,7 @@
       '<span class="dt-label">' + U.esc(d.label) + '</span>' +
       '<span class="dt-time">' + d.time + '</span>' +
       (d.waiting ? '<button class="btn small primary" data-dock="resume">Продолжить</button>' : '') +
-      '<button class="btn small" data-dock="stop" title="Остановить и записать">■ Стоп</button>';
+      '<button class="btn small" data-dock="stop" title="Остановить и записать">' + I('stop') + ' Стоп</button>';
   }
 
   dockTimer.addEventListener('click', (e) => {
@@ -97,9 +97,9 @@
   function renderPlayer() {
     const on = Sound.tracks.filter((t) => Sound.isPlaying(t.id));
     const loading = Sound.tracks.some((t) => Sound.isLoading(t.id) && Sound.isPlaying(t.id));
-    P.toggle.textContent = on.length ? '❚❚' : '▶';
+    P.toggle.innerHTML = on.length ? I('pause') : I('play');
     P.toggle.classList.toggle('on', on.length > 0);
-    P.title.textContent = on.length ? on.map((t) => t.icon + ' ' + t.name).join(' + ') : 'Фоновые звуки';
+    P.title.textContent = on.length ? on.map((t) => t.name).join(' + ') : 'Фоновые звуки';
     P.sub.textContent = loading ? 'готовлю звук…' : on.length ? 'играет' : 'нажми, чтобы выбрать';
     if (!P.mixer.hidden) renderMixer();
   }
@@ -107,13 +107,13 @@
   function renderMixer() {
     P.mixer.innerHTML =
       '<div class="mixer-head"><strong>Микшер звуков</strong><span class="muted small">можно включить несколько сразу</span>' +
-      '<button class="icon-btn" data-mix="close" aria-label="Закрыть">✕</button></div>' +
+      '<button class="icon-btn" data-mix="close" aria-label="Закрыть">' + I('x') + '</button></div>' +
       '<div class="mixer-list">' + Sound.tracks.map((t) => {
         const on = Sound.isPlaying(t.id);
         const loading = Sound.isLoading(t.id);
         return '<div class="mix-row' + (on ? ' on' : '') + '">' +
           '<button class="mix-btn" data-mix="toggle" data-id="' + t.id + '" aria-pressed="' + on + '">' +
-          '<span class="mix-icon">' + t.icon + '</span><span><b>' + t.name + '</b><small>' + (loading && on ? 'готовлю… (пара секунд)' : t.desc) + '</small></span></button>' +
+          '<span class="mix-icon">' + I(t.icon) + '</span><span><b>' + t.name + '</b><small>' + (loading && on ? 'готовлю… (пара секунд)' : t.desc) + '</small></span></button>' +
           '<input type="range" min="0" max="1" step="0.01" value="' + Sound.level(t.id) + '" data-mix="level" data-id="' + t.id + '" aria-label="Громкость: ' + t.name + '">' +
           '</div>';
       }).join('') + '</div>' +
@@ -147,7 +147,7 @@
   App.modal = function (o) {
     modalRoot.innerHTML =
       '<div class="modal-backdrop"><form class="modal" role="dialog" aria-modal="true" aria-label="' + U.esc(o.title) + '">' +
-      '<div class="modal-head"><h2>' + U.esc(o.title) + '</h2><button type="button" class="icon-btn" data-close aria-label="Закрыть">✕</button></div>' +
+      '<div class="modal-head"><h2>' + U.esc(o.title) + '</h2><button type="button" class="icon-btn" data-close aria-label="Закрыть">' + I('x') + '</button></div>' +
       '<div class="modal-body">' + o.body + '</div>' +
       '<div class="modal-foot">' + (o.extra || '') + '<span class="spacer"></span>' +
       '<button type="button" class="btn" data-close>Отмена</button>' +
@@ -205,7 +205,7 @@
   function renderSidebarStreak() {
     const el = document.getElementById('sidebar-streak');
     const s = Stats.streak();
-    el.innerHTML = '<div class="streak-mini' + (s.todayDone ? ' done' : '') + '">🔥 <b>' + s.current + '</b> ' +
+    el.innerHTML = '<div class="streak-mini' + (s.todayDone ? ' done' : '') + '">' + I('flame') + ' <b>' + s.current + '</b> ' +
       U.plural(s.current, ['день', 'дня', 'дней']) + ' подряд</div>';
   }
 
@@ -238,6 +238,8 @@
   Store.onChange(() => { App.applyTheme(); });
 
   // ---------- Запуск ----------
+  // Иконки в статичной разметке (меню, плеер)
+  document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = I(el.dataset.icon); });
   App.applyTheme();
   renderPlayer();
   renderDockTimer();

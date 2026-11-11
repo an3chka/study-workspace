@@ -165,7 +165,7 @@
 
     updateTitle() {
       const d = Timer.display();
-      document.title = d ? (d.phase === 'work' ? '⏱ ' : '☕ ') + d.time + ' · ' + d.name : baseTitle;
+      document.title = d ? d.time + (d.phase === 'work' ? '' : ' перерыв') + ' · ' + d.name : baseTitle;
     },
   };
 

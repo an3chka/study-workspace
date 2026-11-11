@@ -6,22 +6,22 @@
   const App = window.App = window.App || {};
   App.views = App.views || {};
 
-  const MOODS = ['', '😣', '😕', '😐', '🙂', '😄'];
+  const MOODS = ['', I('face1'), I('face2'), I('face3'), I('face4'), I('face5')];
   const MOOD_TXT = ['', 'очень плохо', 'так себе', 'нормально', 'хорошо', 'отлично'];
   const TAGS = ['учёба', 'спорт', 'прогулка', 'друзья', 'семья', 'творчество', 'выспалась', 'не выспалась', 'много соцсетей', 'кофе', 'дедлайн', 'отдых'];
 
   const EXERCISES = [
-    { id: 'box', icon: '🟦', name: 'Дыхание «квадрат»', desc: 'вдох 4 · пауза 4 · выдох 4 · пауза 4. Успокаивает и собирает внимание', kind: 'breath', phases: [['Вдох', 4, 'in'], ['Задержка', 4, 'hold'], ['Выдох', 4, 'out'], ['Пауза', 4, 'hold']], cycles: 6 },
-    { id: '478', icon: '🌙', name: 'Дыхание 4-7-8', desc: 'вдох 4 · задержка 7 · медленный выдох 8. Помогает расслабиться и уснуть', kind: 'breath', phases: [['Вдох носом', 4, 'in'], ['Задержка', 7, 'hold'], ['Выдох ртом', 8, 'out']], cycles: 4 },
-    { id: 'calm', icon: '🍃', name: 'Спокойное дыхание', desc: 'вдох 4 · выдох 6. Длинный выдох снижает тревогу', kind: 'breath', phases: [['Вдох', 4, 'in'], ['Выдох', 6, 'out']], cycles: 10 },
-    { id: 'ground', icon: '🖐️', name: 'Заземление 5-4-3-2-1', desc: 'вернуться «сюда и сейчас», когда накрывает тревога', kind: 'steps', steps: [
-      ['👀', 'Назови 5 вещей, которые ты видишь'], ['✋', 'Найди 4 вещи, которых можешь коснуться'], ['👂', 'Прислушайся: 3 звука вокруг'],
-      ['👃', '2 запаха, которые чувствуешь (или любимых)'], ['👅', '1 вкус — или сделай глоток воды'], ['💛', 'Сделай медленный вдох и выдох. Ты здесь, ты справляешься.']] },
-    { id: 'body', icon: '🧘‍♀️', name: 'Пауза для тела', desc: '2 минуты: разминка после долгого сидения', kind: 'timed', steps: [
-      ['🙆‍♀️', 'Потянись вверх, как после сна', 20], ['🔄', 'Покрути плечами вперёд и назад', 20], ['↔️', 'Медленные наклоны головы вправо-влево', 20],
-      ['✊', 'Сожми и разожми кулаки, покрути кистями', 20], ['🔭', 'Посмотри вдаль, дай глазам отдохнуть', 20], ['💧', 'Выпей воды', 20]] },
-    { id: 'gratitude', icon: '🌼', name: 'Три хороших вещи', desc: 'запиши 3 вещи, за которые благодарна сегодня', kind: 'journal' },
-    { id: 'thoughts', icon: '🗒️', name: 'Разгрузка мыслей', desc: 'выгрузи то, что крутится в голове, и найди один маленький шаг', kind: 'journal' },
+    { id: 'box', icon: 'square', name: 'Дыхание «квадрат»', desc: 'вдох 4 · пауза 4 · выдох 4 · пауза 4. Успокаивает и собирает внимание', kind: 'breath', phases: [['Вдох', 4, 'in'], ['Задержка', 4, 'hold'], ['Выдох', 4, 'out'], ['Пауза', 4, 'hold']], cycles: 6 },
+    { id: '478', icon: 'moon', name: 'Дыхание 4-7-8', desc: 'вдох 4 · задержка 7 · медленный выдох 8. Помогает расслабиться и уснуть', kind: 'breath', phases: [['Вдох носом', 4, 'in'], ['Задержка', 7, 'hold'], ['Выдох ртом', 8, 'out']], cycles: 4 },
+    { id: 'calm', icon: 'wind', name: 'Спокойное дыхание', desc: 'вдох 4 · выдох 6. Длинный выдох снижает тревогу', kind: 'breath', phases: [['Вдох', 4, 'in'], ['Выдох', 6, 'out']], cycles: 10 },
+    { id: 'ground', icon: 'anchor', name: 'Заземление 5-4-3-2-1', desc: 'вернуться «сюда и сейчас», когда накрывает тревога', kind: 'steps', steps: [
+      ['eye', 'Назови 5 вещей, которые ты видишь'], ['hand', 'Найди 4 вещи, которых можешь коснуться'], ['volume', 'Прислушайся: 3 звука вокруг'],
+      ['leaf', '2 запаха, которые чувствуешь (или любимых)'], ['coffee', '1 вкус — или сделай глоток воды'], ['heart', 'Сделай медленный вдох и выдох. Ты здесь, ты справляешься.']] },
+    { id: 'body', icon: 'activity', name: 'Пауза для тела', desc: '2 минуты: разминка после долгого сидения', kind: 'timed', steps: [
+      ['activity', 'Потянись вверх, как после сна', 20], ['activity', 'Покрути плечами вперёд и назад', 20], ['activity', 'Медленные наклоны головы вправо-влево', 20],
+      ['hand', 'Сожми и разожми кулаки, покрути кистями', 20], ['eye', 'Посмотри вдаль, дай глазам отдохнуть', 20], ['coffee', 'Выпей воды', 20]] },
+    { id: 'gratitude', icon: 'sun', name: 'Три хороших вещи', desc: 'запиши 3 вещи, за которые благодарна сегодня', kind: 'journal' },
+    { id: 'thoughts', icon: 'note', name: 'Разгрузка мыслей', desc: 'выгрузи то, что крутится в голове, и найди один маленький шаг', kind: 'journal' },
   ];
 
   let root = null;
@@ -93,7 +93,7 @@
     el.innerHTML =
       '<header class="page-head"><div><h1>Самочувствие</h1><p class="muted">Замечай, как ты, — и бережно заботься о себе</p></div></header>' +
 
-      (lowStreak ? '<div class="card soft-alert">💛 Последние дни были тяжёлыми. Попробуй упражнение ниже, сделай перерыв или поговори с кем-то близким. ' +
+      (lowStreak ? '<div class="card soft-alert">' + I('heart') + ' Последние дни были тяжёлыми. Попробуй упражнение ниже, сделай перерыв или поговори с кем-то близким. ' +
         'Если плохо долго — это нормальный повод обратиться к психологу. В экстренной ситуации звони <b>112</b>.</div>' : '') +
 
       '<div class="grid-2">' +
@@ -111,12 +111,12 @@
           '<li><span class="mood-emoji">' + MOODS[m.mood] + '</span><span class="muted small">' + U.timeLabel(m.ts) + '</span>' +
           '<span class="small">энергия ' + m.energy + ' · стресс ' + m.stress + (m.sleep ? ' · сон ' + m.sleep + ' ч' : '') + (m.tags && m.tags.length ? ' · ' + U.esc(m.tags.join(', ')) : '') + '</span>' +
           (m.note ? '<span class="small mood-note">' + U.esc(m.note) + '</span>' : '') +
-          '<button class="icon-btn small" data-m="del-mood" data-id="' + m.id + '" aria-label="Удалить отметку">✕</button></li>').join('') + '</ul>' : '') +
+          '<button class="icon-btn small" data-m="del-mood" data-id="' + m.id + '" aria-label="Удалить отметку">' + I('x') + '</button></li>').join('') + '</ul>' : '') +
       '</section>' +
 
       '<section class="card"><div class="card-head"><h2>Упражнения</h2>' + (practicedToday ? '<span class="tag ok">сегодня: ' + practicedToday + '</span>' : '') + '</div>' +
         '<div class="ex-list">' + EXERCISES.map((e) =>
-          '<button class="ex-item" data-m="ex" data-id="' + e.id + '"><span class="ex-icon">' + e.icon + '</span><span><b>' + e.name + '</b><small>' + e.desc + '</small></span></button>').join('') +
+          '<button class="ex-item" data-m="ex" data-id="' + e.id + '"><span class="ex-icon">' + I(e.icon) + '</span><span><b>' + e.name + '</b><small>' + e.desc + '</small></span></button>').join('') +
         '</div></section>' +
       '</div>' +
 
@@ -126,14 +126,14 @@
           { key: 'mood', name: 'настроение', color: 'var(--accent)' }, { key: 'energy', name: 'энергия', color: 'var(--good)' }, { key: 'stress', name: 'стресс', color: 'var(--bad)' }] })
           : '<p class="empty">Отмечай самочувствие хотя бы раз в день — здесь появится график.</p>') +
         (insights.length ? '<h3>Что связано с твоим настроением</h3><ul class="insights">' + insights.map((i) =>
-          '<li>' + (i.diff > 0 ? '⬆️' : '⬇️') + ' В дни с «' + U.esc(i.tag) + '» настроение в среднем ' + (i.diff > 0 ? 'выше' : 'ниже') + ' на <b>' + Math.abs(i.diff) + '</b> <span class="muted small">(' + i.n + ' ' + U.plural(i.n, ['день', 'дня', 'дней']) + ')</span></li>').join('') +
+          '<li class="h-ic">' + (i.diff > 0 ? I('trend-up') : I('trend-down')) + ' В дни с «' + U.esc(i.tag) + '» настроение в среднем ' + (i.diff > 0 ? 'выше' : 'ниже') + ' на <b>' + Math.abs(i.diff) + '</b> <span class="muted small">(' + i.n + ' ' + U.plural(i.n, ['день', 'дня', 'дней']) + ')</span></li>').join('') +
           '</ul><p class="muted small">Это корреляция, а не доказательство — но хороший повод присмотреться.</p>' :
           (hasData ? '<p class="muted small">Отмечай теги («прогулка», «не выспалась»…) — через неделю-две здесь появится, что влияет на настроение.</p>' : '')) +
       '</section>' +
 
       (journal.length ? '<section class="card"><h2>Дневник</h2><ul class="journal">' + journal.map((j) =>
-        '<li><div class="j-head"><span>' + (j.type === 'gratitude' ? '🌼 Три хороших вещи' : '🗒️ Разгрузка мыслей') + '</span><span class="muted small">' + U.dateLabel(j.ts) + '</span>' +
-        '<button class="icon-btn small" data-m="del-journal" data-id="' + j.id + '" aria-label="Удалить запись">✕</button></div>' +
+        '<li><div class="j-head"><span>' + (j.type === 'gratitude' ? I('sun') + ' Три хороших вещи' : I('note') + ' Разгрузка мыслей') + '</span><span class="muted small">' + U.dateLabel(j.ts) + '</span>' +
+        '<button class="icon-btn small" data-m="del-journal" data-id="' + j.id + '" aria-label="Удалить запись">' + I('x') + '</button></div>' +
         '<div class="j-text">' + U.esc(j.text).replace(/\n/g, '<br>') + '</div></li>').join('') + '</ul></section>' : '') +
 
       '<p class="hint muted small">Записи хранятся только в этом браузере. Это не медицинский инструмент: если тебе долго плохо — обратись к специалисту.</p>';
@@ -154,17 +154,17 @@
       body =
         '<div class="breath"><div class="breath-circle" id="breath-circle"></div><div class="breath-text"><b id="breath-phase">Готова?</b><span id="breath-count"></span></div></div>' +
         '<p class="muted center" id="breath-cycle">' + e.cycles + ' ' + U.plural(e.cycles, ['цикл', 'цикла', 'циклов']) + ' · примерно ' + Math.round(e.cycles * e.phases.reduce((a, p) => a + p[1], 0) / 60 * 10) / 10 + ' мин</p>' +
-        '<div class="row-btns"><button class="btn primary big" data-m="breath-start" id="breath-btn">▶ Начать</button></div>';
+        '<div class="row-btns"><button class="btn primary big" data-m="breath-start" id="breath-btn">' + I('play') + ' Начать</button></div>';
     } else if (e.kind === 'steps' || e.kind === 'timed') {
       const st = e.steps[ex.step];
       body =
-        '<div class="ex-step"><div class="ex-step-icon">' + st[0] + '</div><p class="ex-step-text">' + U.esc(st[1]) + '</p>' +
+        '<div class="ex-step"><div class="ex-step-icon">' + I(st[0]) + '</div><p class="ex-step-text">' + U.esc(st[1]) + '</p>' +
         (e.kind === 'timed' ? '<div class="timer-time small-time" id="step-time">' + (ex.left != null ? ex.left : st[2]) + '</div>' : '') +
         '<p class="muted">Шаг ' + (ex.step + 1) + ' из ' + e.steps.length + '</p>' +
         '<div class="progress"><span style="width:' + ((ex.step) / e.steps.length * 100) + '%"></span></div></div>' +
         '<div class="row-btns">' + (ex.step > 0 ? '<button class="btn" data-m="step-prev">‹ Назад</button>' : '') +
-        (e.kind === 'timed' && !ex.running ? '<button class="btn primary big" data-m="timed-start">▶ Начать</button>' :
-          '<button class="btn primary big" data-m="step-next">' + (ex.step === e.steps.length - 1 ? 'Готово ✓' : 'Дальше ›') + '</button>') + '</div>';
+        (e.kind === 'timed' && !ex.running ? '<button class="btn primary big" data-m="timed-start">' + I('play') + ' Начать</button>' :
+          '<button class="btn primary big" data-m="step-next">' + (ex.step === e.steps.length - 1 ? 'Готово ' + I('check') : 'Дальше ' + I('chevron-right')) + '</button>') + '</div>';
     } else if (e.id === 'gratitude') {
       body = '<form id="journal-form" class="journal-form"><p class="muted">Даже мелочи считаются: вкусный кофе, солнце, сообщение от друга.</p>' +
         [1, 2, 3].map((i) => '<input name="g' + i + '" maxlength="200" placeholder="' + i + '. Я благодарна за…" ' + (i === 1 ? 'required' : '') + '>').join('') +
@@ -177,7 +177,7 @@
         '<button class="btn primary">Сохранить и выдохнуть</button></form>';
     }
     el.innerHTML =
-      '<div class="exercise"><div class="study-top"><button class="link-btn" data-m="ex-close">‹ Назад</button><span class="muted">' + e.icon + ' ' + e.name + '</span><span></span></div>' +
+      '<div class="exercise"><div class="study-top"><button class="link-btn" data-m="ex-close">' + I('chevron-left') + ' Назад</button><span class="muted h-ic">' + I(e.icon) + ' ' + e.name + '</span><span></span></div>' +
       '<div class="card ex-card"><p class="muted center">' + e.desc + '</p>' + body + '</div></div>';
   }
 
@@ -187,7 +187,7 @@
     logPractice(e.id, sec);
     ex = null;
     App.render();
-    U.toast('Готово 💛 Отметь, как ты сейчас, — так будет видно, что помогает.');
+    U.toast('Готово! Отметь, как ты сейчас, — так будет видно, что помогает.');
     const f = root && root.querySelector('#mood-form');
     if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -199,7 +199,7 @@
     const countEl = root.querySelector('#breath-count');
     const cycleEl = root.querySelector('#breath-cycle');
     const btn = root.querySelector('#breath-btn');
-    btn.textContent = '■ Закончить';
+    btn.innerHTML = I('stop') + ' Закончить';
     btn.dataset.m = 'breath-stop';
     btn.classList.remove('primary');
     const started = Date.now();
@@ -287,7 +287,7 @@
       };
       S().mood.push(m);
       Store.save(); App.render();
-      U.toast(m.mood <= 2 ? 'Записала. Береги себя 💛 — может, упражнение справа?' : 'Записано ' + MOODS[m.mood]);
+      U.toast(m.mood <= 2 ? 'Записала. Береги себя — может, поможет упражнение?' : 'Записано: ' + MOOD_TXT[m.mood]);
     }
     if (e.target.id === 'journal-form') {
       e.preventDefault();

@@ -116,6 +116,7 @@ js/timer.js           — секундомер и Pomodoro
 js/audio.js           — генерация фоновых звуков и сигналов (Web Audio API)
 js/charts.js          — графики на SVG
 js/stats-data.js      — подсчёты для статистики и серии дней
+js/icons.js           — набор линейных SVG-иконок
 js/insights.js        — «помощник»: советы и обзор недели по правилам
 js/views/*.js         — разделы: home, plan, stats, cards, read, hobby, mind, settings
 js/app.js             — переключение разделов, плеер, окна, горячие клавиши

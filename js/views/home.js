@@ -45,14 +45,14 @@
       '</div>' +
       (function () {
         const ins = App.insightsToday();
-        return ins.length ? '<section class="card assistant"><div class="card-head"><h2>💡 Помощник</h2><a class="small" href="#/stats">обзор недели ›</a></div>' + App.renderInsights(ins, 4) + '</section>' : '';
+        return ins.length ? '<section class="card assistant"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Помощник</h2><a class="small" href="#/stats">обзор недели ›</a></div>' + App.renderInsights(ins, 4) + '</section>' : '';
       })() +
 
       '<section class="card">' +
         '<div class="card-head"><h2>Задачи</h2>' +
           '<div class="seg" role="group" aria-label="Режим таймера">' +
-            '<button class="' + (mode === 'watch' ? 'on' : '') + '" data-act="mode" data-mode="watch" title="Считает время, пока не остановишь">⏱ Секундомер</button>' +
-            '<button class="' + (mode === 'pomo' ? 'on' : '') + '" data-act="mode" data-mode="pomo" title="' + st.settings.pomoWork + ' мин работы, потом перерыв">🍅 Pomodoro ' + st.settings.pomoWork + '/' + st.settings.pomoBreak + '</button>' +
+            '<button class="' + (mode === 'watch' ? 'on' : '') + '" data-act="mode" data-mode="watch" title="Считает время, пока не остановишь">' + I('timer') + ' Секундомер</button>' +
+            '<button class="' + (mode === 'pomo' ? 'on' : '') + '" data-act="mode" data-mode="pomo" title="' + st.settings.pomoWork + ' мин работы, потом перерыв">' + I('clock') + ' Pomodoro ' + st.settings.pomoWork + '/' + st.settings.pomoBreak + '</button>' +
           '</div></div>' +
         (usedCats.length > 1 ? '<div class="chips">' +
           '<button class="chip' + (filter === 'all' ? ' on' : '') + '" data-act="filter" data-id="all">Все</button>' +
@@ -62,14 +62,14 @@
           const c = Store.category(t.categoryId);
           const running = active && active.taskId === t.id;
           return '<li class="task' + (running ? ' running' : '') + '">' +
-            '<button class="play" data-act="' + (running ? 'stop' : 'start') + '" data-id="' + t.id + '" aria-label="' + (running ? 'Остановить' : 'Запустить') + ' ' + U.esc(t.name) + '">' + (running ? '■' : '▶') + '</button>' +
+            '<button class="play" data-act="' + (running ? 'stop' : 'start') + '" data-id="' + t.id + '" aria-label="' + (running ? 'Остановить' : 'Запустить') + ' ' + U.esc(t.name) + '">' + (running ? I('stop') : I('play')) + '</button>' +
             '<div class="task-main"><div class="task-name">' + U.esc(t.name) + '</div>' +
             '<div class="task-meta"><span class="cat"><i style="background:' + c.color + '"></i>' + U.esc(c.name) + '</span>' +
             (t.goalMin ? '<span>цель ' + t.goalMin + ' мин/день</span>' : '') + '</div>' +
             (t.goalMin ? '<div class="mini-bar"><span style="width:' + Math.min(100, (perTask[t.id] || 0) / 60 / t.goalMin * 100) + '%;background:' + c.color + '"></span></div>' : '') +
             '</div>' +
             '<div class="task-time"><b data-live-task="' + t.id + '">' + U.human(perTask[t.id] || 0) + '</b><small>всего ' + U.human(totalPerTask[t.id] || 0) + '</small></div>' +
-            '<button class="icon-btn" data-act="menu" data-id="' + t.id + '" aria-label="Действия с задачей">⋯</button>' +
+            '<button class="icon-btn" data-act="menu" data-id="' + t.id + '" aria-label="Действия с задачей">' + I('more') + '</button>' +
             '</li>';
         }).join('') : '<li class="empty">' + (st.tasks.length ? 'В этой категории нет задач' : 'Пока нет задач. Добавь первую — например, «Английский: слова» или «Рисование».') + '</li>') + '</ul>' +
         '<form class="add-task" id="add-task">' +
@@ -96,8 +96,8 @@
     return '<div class="today">' +
       Charts.ring(frac, '<b>' + U.human(total) + '</b><small>из ' + U.human(goal) + '</small>') +
       '<div class="today-info">' +
-        '<div class="stat-line"><span class="big">🔥 ' + streak.current + '</span> ' + U.plural(streak.current, ['день', 'дня', 'дней']) + ' подряд</div>' +
-        '<p class="muted small">' + (frac >= 1 ? 'Цель на сегодня выполнена — ты молодец! 🎉' :
+        '<div class="stat-line"><span class="big flame">' + I('flame') + streak.current + '</span> ' + U.plural(streak.current, ['день', 'дня', 'дней']) + ' подряд</div>' +
+        '<p class="muted small">' + (frac >= 1 ? 'Цель на сегодня выполнена — ты молодец!' :
           goal ? 'Осталось ' + U.human(goal - total) + ' до дневной цели' : 'Дневная цель не задана') + '</p>' +
         (cats.length ? Charts.stack(cats.map((c) => ({ value: c.sec, color: c.color, label: c.name }))) +
           '<ul class="legend">' + cats.map((c) => '<li><i style="background:' + c.color + '"></i>' + U.esc(c.name) + ' <span class="muted">' + U.human(c.sec) + '</span></li>').join('') + '</ul>' : '') +
@@ -111,8 +111,8 @@
       const last = st.settings.lastTask && Store.task(st.settings.lastTask);
       return '<div class="timer idle">' +
         '<div class="timer-time">' + (mode === 'pomo' ? U.clock(st.settings.pomoWork * 60) : '00:00') + '</div>' +
-        '<p class="muted">' + (last && !last.archived ? 'Последняя задача: <b>' + U.esc(last.name) + '</b>' : 'Выбери задачу ниже и нажми ▶') + '</p>' +
-        (last && !last.archived ? '<button class="btn primary big" data-act="start" data-id="' + last.id + '">▶ Продолжить «' + U.esc(last.name) + '»</button>' : '') +
+        '<p class="muted">' + (last && !last.archived ? 'Последняя задача: <b>' + U.esc(last.name) + '</b>' : 'Выбери задачу ниже и нажми «старт»') + '</p>' +
+        (last && !last.archived ? '<button class="btn primary big" data-act="start" data-id="' + last.id + '">' + I('play') + ' Продолжить «' + U.esc(last.name) + '»</button>' : '') +
         '</div>';
     }
     const a = st.active;
@@ -120,13 +120,13 @@
     const total = isPomo ? (a.phase === 'work' ? st.settings.pomoWork : a.phase === 'long' ? st.settings.pomoLong : st.settings.pomoBreak) * 60 : 0;
     const frac = isPomo ? 1 - Timer.remaining() / total : 0;
     return '<div class="timer run phase-' + d.phase + '">' +
-      '<div class="timer-label">' + (isPomo ? (d.phase === 'work' ? '🍅 ' : '☕ ') : '⏱ ') + U.esc(d.label) + '</div>' +
+      '<div class="timer-label">' + (isPomo ? (d.phase === 'work' ? I('clock') : I('coffee')) : I('timer')) + U.esc(d.label) + '</div>' +
       '<div class="timer-time" id="timer-time">' + d.time + '</div>' +
       '<div class="timer-task">' + U.esc(d.name) + '</div>' +
       (isPomo ? '<div class="progress"><span id="timer-progress" style="width:' + (frac * 100) + '%"></span></div>' : '') +
       '<div class="timer-actions">' +
-        (d.waiting ? '<button class="btn primary" data-act="resume">▶ Следующий помидор</button>' : '') +
-        '<button class="btn primary" data-act="stop">■ Стоп и записать</button>' +
+        (d.waiting ? '<button class="btn primary" data-act="resume">' + I('play') + ' Следующий помидор</button>' : '') +
+        '<button class="btn primary" data-act="stop">' + I('stop') + ' Стоп и записать</button>' +
         (isPomo && !d.waiting ? '<button class="btn" data-act="skip">' + (d.phase === 'work' ? 'Завершить помидор' : 'Пропустить перерыв') + '</button>' : '') +
         '<button class="btn ghost" data-act="cancel" title="Не записывать это время">Сбросить</button>' +
       '</div></div>';
@@ -139,9 +139,9 @@
       const c = Store.category(t && t.categoryId);
       return '<li' + (s.live ? ' class="live"' : '') + '><i style="background:' + c.color + '"></i>' +
         '<span class="h-time">' + U.timeLabel(s.start) + '–' + (s.live ? 'сейчас' : U.timeLabel(s.end)) + '</span>' +
-        '<span class="h-name">' + U.esc(t ? t.name : 'Удалённая задача') + (s.kind === 'pomo' ? ' 🍅' : s.kind === 'manual' ? ' ✍️' : '') + '</span>' +
+        '<span class="h-name">' + U.esc(t ? t.name : 'Удалённая задача') + (s.kind === 'pomo' ? ' <span class="tag">pomodoro</span>' : s.kind === 'manual' ? ' <span class="tag">вручную</span>' : '') + '</span>' +
         '<b' + (s.live ? ' data-live-session' : '') + '>' + U.human(s.sec) + '</b>' +
-        (s.live ? '<span></span>' : '<button class="icon-btn small" data-act="edit-session" data-id="' + s.id + '" aria-label="Изменить запись">✎</button>') +
+        (s.live ? '<span></span>' : '<button class="icon-btn small" data-act="edit-session" data-id="' + s.id + '" aria-label="Изменить запись">' + I('pencil') + '</button>') +
         '</li>';
     }).join('') + '</ul>';
   }

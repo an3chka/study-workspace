@@ -337,12 +337,12 @@
   // ---------- Список звуков ----------
 
   const TRACKS = [
-    { id: 'lofi', name: 'Lo-fi', icon: '🎹', desc: 'спокойный бит с пианино', make: () => renderLoop(53.333, 1.5, buildLofi) },
-    { id: 'rain', name: 'Дождь', icon: '🌧️', desc: 'капли и шум дождя', make: () => renderLoop(24, 0, buildRain) },
-    { id: 'ocean', name: 'Океан', icon: '🌊', desc: 'медленные волны', make: () => renderLoop(32, 0, buildOcean) },
-    { id: 'white', name: 'Белый шум', icon: '⚪', desc: 'ровный шипящий шум', make: () => Promise.resolve(noiseBuffer(bufFactory, 10, 'white', 1)) },
-    { id: 'pink', name: 'Розовый шум', icon: '🌸', desc: 'мягче белого', make: () => Promise.resolve(noiseBuffer(bufFactory, 10, 'pink', 2)) },
-    { id: 'brown', name: 'Коричневый шум', icon: '🟤', desc: 'низкий, как гул поезда', make: () => Promise.resolve(noiseBuffer(bufFactory, 10, 'brown', 4)) },
+    { id: 'lofi', name: 'Lo-fi', icon: 'headphones', desc: 'спокойный бит с пианино', make: () => renderLoop(53.333, 1.5, buildLofi) },
+    { id: 'rain', name: 'Дождь', icon: 'rain', desc: 'капли и шум дождя', make: () => renderLoop(24, 0, buildRain) },
+    { id: 'ocean', name: 'Океан', icon: 'waves', desc: 'медленные волны', make: () => renderLoop(32, 0, buildOcean) },
+    { id: 'white', name: 'Белый шум', icon: 'noise', desc: 'ровный шипящий шум', make: () => Promise.resolve(noiseBuffer(bufFactory, 10, 'white', 1)) },
+    { id: 'pink', name: 'Розовый шум', icon: 'noise', desc: 'мягче белого', make: () => Promise.resolve(noiseBuffer(bufFactory, 10, 'pink', 2)) },
+    { id: 'brown', name: 'Коричневый шум', icon: 'noise', desc: 'низкий, как гул поезда', make: () => Promise.resolve(noiseBuffer(bufFactory, 10, 'brown', 4)) },
   ];
 
   const DEFAULT_LEVEL = { lofi: 0.8, rain: 0.6, ocean: 0.6, white: 0.25, pink: 0.35, brown: 0.5 };

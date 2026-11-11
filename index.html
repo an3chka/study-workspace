@@ -29,15 +29,15 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-icon">📚</span><span>Рабочий кабинет</span></div>
+      <div class="brand"><span class="brand-icon" data-icon="sparkles"></span><span>Рабочий кабинет</span></div>
       <nav class="nav" id="nav">
-        <a href="#/" data-route="home"><span class="ni">⏱️</span><span class="nl">Сегодня</span></a>
-        <a href="#/plan" data-route="plan"><span class="ni">📅</span><span class="nl">План</span></a>
-        <a href="#/stats" data-route="stats"><span class="ni">📊</span><span class="nl" data-short="Стат.">Статистика</span></a>
-        <a href="#/cards" data-route="cards"><span class="ni">🗂️</span><span class="nl">Языки</span></a>
-        <a href="#/hobby" data-route="hobby"><span class="ni">🎨</span><span class="nl">Хобби</span></a>
-        <a href="#/mind" data-route="mind"><span class="ni">🌿</span><span class="nl" data-short="Чувства">Самочувствие</span></a>
-        <a href="#/settings" data-route="settings"><span class="ni">⚙️</span><span class="nl" data-short="Ещё">Настройки</span></a>
+        <a href="#/" data-route="home"><span class="ni" data-icon="clock"></span><span class="nl">Сегодня</span></a>
+        <a href="#/plan" data-route="plan"><span class="ni" data-icon="calendar"></span><span class="nl">План</span></a>
+        <a href="#/stats" data-route="stats"><span class="ni" data-icon="chart"></span><span class="nl" data-short="Стат.">Статистика</span></a>
+        <a href="#/cards" data-route="cards"><span class="ni" data-icon="cards"></span><span class="nl">Языки</span></a>
+        <a href="#/hobby" data-route="hobby"><span class="ni" data-icon="palette"></span><span class="nl">Хобби</span></a>
+        <a href="#/mind" data-route="mind"><span class="ni" data-icon="heart"></span><span class="nl" data-short="Чувства">Самочувствие</span></a>
+        <a href="#/settings" data-route="settings"><span class="ni" data-icon="settings"></span><span class="nl" data-short="Ещё">Настройки</span></a>
       </nav>
       <div class="sidebar-foot" id="sidebar-streak"></div>
     </aside>
@@ -51,13 +51,13 @@
   <div class="dock" id="dock">
     <div class="dock-timer" id="dock-timer" hidden></div>
     <div class="player" id="player">
-      <button class="icon-btn play-btn" id="player-toggle" title="Включить/выключить звук" aria-label="Включить или выключить звук">▶</button>
+      <button class="icon-btn play-btn" id="player-toggle" title="Включить/выключить звук" aria-label="Включить или выключить звук"></button>
       <button class="player-info" id="player-open" title="Открыть микшер звуков">
         <span class="player-title" id="player-title">Фоновые звуки</span>
         <span class="player-sub" id="player-sub">нажми, чтобы выбрать</span>
       </button>
       <input type="range" class="player-vol" id="player-vol" min="0" max="1" step="0.01" aria-label="Общая громкость">
-      <button class="icon-btn" id="player-mixer" title="Микшер" aria-label="Открыть микшер">🎚️</button>
+      <button class="icon-btn" id="player-mixer" title="Микшер" aria-label="Открыть микшер" data-icon="settings"></button>
     </div>
     <div class="mixer" id="mixer" hidden></div>
   </div>
@@ -65,6 +65,7 @@
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div id="modal-root"></div>
 
+  <script src="js/icons.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/store.js"></script>
   <script src="js/audio.js"></script>

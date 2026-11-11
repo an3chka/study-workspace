@@ -102,21 +102,21 @@
           [['day', 'День'], ['week', 'Неделя'], ['month', 'Месяц']].map(([k, n]) => '<button class="' + (period === k ? 'on' : '') + '" data-st="period" data-p="' + k + '">' + n + '</button>').join('') +
         '</div>' +
         '<div class="period-nav">' +
-          '<button class="icon-btn" data-st="prev" aria-label="Предыдущий период">‹</button>' +
+          '<button class="icon-btn" data-st="prev" aria-label="Предыдущий период">' + I('chevron-left') + '</button>' +
           '<b>' + U.esc(r.title) + '</b>' +
-          '<button class="icon-btn" data-st="next" aria-label="Следующий период"' + (offset >= 0 ? ' disabled' : '') + '>›</button>' +
+          '<button class="icon-btn" data-st="next" aria-label="Следующий период"' + (offset >= 0 ? ' disabled' : '') + '>' + I('chevron-right') + '</button>' +
         '</div>' +
       '</div>' +
 
       '<div class="kpis">' +
-        kpi('Всего', U.human(total), diff === null ? '' : (diff >= 0 ? '▲ ' : '▼ ') + Math.abs(diff) + '% ' + (period === 'day' ? 'к прошлому дню' : period === 'week' ? 'к прошлой неделе' : 'к прошлому месяцу'), diff !== null && diff >= 0 ? 'up' : diff !== null ? 'down' : '') +
+        kpi('Всего', U.human(total), diff === null ? '' : (diff >= 0 ? '+' : '−') + Math.abs(diff) + '% ' + (period === 'day' ? 'к прошлому дню' : period === 'week' ? 'к прошлой неделе' : 'к прошлому месяцу'), diff !== null && diff >= 0 ? 'up' : diff !== null ? 'down' : '') +
         (period === 'day'
           ? kpi('Дневная цель', goal ? Math.min(100, Math.round(total / goal * 100)) + '%' : '—', goal ? 'цель ' + U.human(goal) : 'задай в настройках')
           : kpi('В среднем за день', U.human(total / Math.max(1, days)), activeDays + ' ' + U.plural(activeDays, ['активный день', 'активных дня', 'активных дней']))) +
         (period === 'day'
-          ? kpi('Записей', String(list.length), list.filter((s) => s.kind === 'pomo').length + ' 🍅')
+          ? kpi('Записей', String(list.length), list.filter((s) => s.kind === 'pomo').length + ' pomodoro')
           : kpi('Цель выполнена', goalDays + ' из ' + days, U.plural(days, ['день', 'дня', 'дней']))) +
-        kpi('Серия', '🔥 ' + streak.current, 'лучшая: ' + streak.best + ' ' + U.plural(streak.best, ['день', 'дня', 'дней'])) +
+        kpi('Серия', '<span class="flame">' + I('flame') + streak.current + '</span>', 'лучшая: ' + streak.best + ' ' + U.plural(streak.best, ['день', 'дня', 'дней'])) +
       '</div>' +
 
       '<section class="card"><div class="card-head"><h2>' + (period === 'day' ? 'По часам' : 'По дням') + '</h2>' +
@@ -129,7 +129,7 @@
         '<section class="card"><h2>По задачам</h2>' + breakdown(tasks, total, true) + '</section>' +
       '</div>' +
 
-      '<section class="card assistant"><div class="card-head"><h2>💡 Помощник: обзор последних 7 дней</h2></div>' + App.renderInsights(App.insightsWeek()) + '</section>' +
+      '<section class="card assistant"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Помощник: обзор последних 7 дней</h2></div>' + App.renderInsights(App.insightsWeek()) + '</section>' +
 
       '<section class="card"><div class="card-head"><h2>Календарь активности</h2><span class="muted small">последние 18 недель</span></div>' + heatmap() + '</section>';
   }
