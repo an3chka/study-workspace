@@ -1,11 +1,11 @@
 // Service worker: сохраняет файлы приложения, чтобы оно открывалось без интернета.
 // При изменении файлов увеличь номер версии — тогда браузер скачает свежие.
-const CACHE = 'kabinet-v1';
+const CACHE = 'kabinet-v2';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
-  'js/utils.js', 'js/store.js', 'js/audio.js', 'js/timer.js', 'js/charts.js', 'js/stats-data.js',
-  'js/views/home.js', 'js/views/stats.js', 'js/views/cards.js', 'js/views/read.js',
-  'js/views/hobby.js', 'js/views/settings.js', 'js/app.js',
+  'js/utils.js', 'js/store.js', 'js/audio.js', 'js/timer.js', 'js/charts.js', 'js/stats-data.js', 'js/insights.js',
+  'js/views/home.js', 'js/views/plan.js', 'js/views/stats.js', 'js/views/cards.js', 'js/views/read.js',
+  'js/views/hobby.js', 'js/views/mind.js', 'js/views/settings.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

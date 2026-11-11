@@ -188,7 +188,7 @@
     if (modalRoot.innerHTML || e.ctrlKey || e.metaKey || e.altKey) return;
     if (current && current.key && current.key(e) === true) { e.preventDefault(); return; }
     if (e.key === 'm' || e.key === 'ь') { P.toggle.click(); e.preventDefault(); }
-    const routes = { '1': '#/', '2': '#/stats', '3': '#/cards', '4': '#/hobby', '5': '#/settings' };
+    const routes = { '1': '#/', '2': '#/plan', '3': '#/stats', '4': '#/cards', '5': '#/hobby', '6': '#/mind', '7': '#/settings' };
     if (routes[e.key]) { location.hash = routes[e.key]; e.preventDefault(); }
   });
 

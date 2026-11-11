@@ -57,6 +57,43 @@
     ).join('') + '</div>';
   };
 
+  // Линия по дням: points = [{label, value|null, title}], шкала min..max (например, 1..5).
+  Charts.line = function (points, opts) {
+    opts = opts || {};
+    const W = 640, H = opts.height || 180, padL = 30, padB = 22, padT = 10;
+    const min = opts.min, max = opts.max;
+    const plotW = W - padL - 10, plotH = H - padT - padB;
+    const x = (i) => padL + (points.length === 1 ? plotW / 2 : i * plotW / (points.length - 1));
+    const y = (v) => padT + plotH - (v - min) / (max - min) * plotH;
+    let s = '<svg class="chart line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + U.esc(opts.label || 'График') + '">';
+    for (let v = min; v <= max; v++) {
+      s += '<line class="grid" x1="' + padL + '" x2="' + W + '" y1="' + y(v) + '" y2="' + y(v) + '"/>';
+      s += '<text class="axis" x="' + (padL - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + (opts.yLabels ? opts.yLabels[v] : v) + '</text>';
+    }
+    (opts.series || [{ key: 'value', color: 'var(--accent)' }]).forEach((ser) => {
+      let path = '';
+      let pen = false;
+      points.forEach((p, i) => {
+        const v = p[ser.key];
+        if (v == null) { pen = false; return; }
+        path += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' ';
+        pen = true;
+      });
+      s += '<path d="' + path + '" fill="none" stroke="' + ser.color + '" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+      points.forEach((p, i) => {
+        const v = p[ser.key];
+        if (v == null) return;
+        // Точка — линия нулевой длины с круглым концом: остаётся круглой при любом масштабе
+        s += '<line x1="' + x(i) + '" y1="' + y(v) + '" x2="' + x(i) + '" y2="' + y(v) + '" stroke="' + ser.color + '" stroke-width="8" stroke-linecap="round" vector-effect="non-scaling-stroke"><title>' + U.esc((p.title || p.label) + ' — ' + ser.name + ': ' + v) + '</title></line>';
+      });
+    });
+    const every = Math.ceil(points.length / 10);
+    points.forEach((p, i) => {
+      if (i % every === 0 || i === points.length - 1) s += '<text class="axis" x="' + x(i) + '" y="' + (H - 5) + '" text-anchor="middle">' + U.esc(p.label) + '</text>';
+    });
+    return s + '</svg>';
+  };
+
   function niceStep(maxHours) {
     const steps = [0.25, 0.5, 1, 2, 3, 4, 6, 12];
     for (const st of steps) if (maxHours / st <= 4) return st;

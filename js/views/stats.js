@@ -129,6 +129,8 @@
         '<section class="card"><h2>По задачам</h2>' + breakdown(tasks, total, true) + '</section>' +
       '</div>' +
 
+      '<section class="card assistant"><div class="card-head"><h2>💡 Помощник: обзор последних 7 дней</h2></div>' + App.renderInsights(App.insightsWeek()) + '</section>' +
+
       '<section class="card"><div class="card-head"><h2>Календарь активности</h2><span class="muted small">последние 18 недель</span></div>' + heatmap() + '</section>';
   }
 

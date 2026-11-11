@@ -43,6 +43,10 @@
         '<section class="card today-card" id="today-card">' + todayCard(todayList) + '</section>' +
         '<section class="card timer-card" id="timer-card">' + timerCard(mode) + '</section>' +
       '</div>' +
+      (function () {
+        const ins = App.insightsToday();
+        return ins.length ? '<section class="card assistant"><div class="card-head"><h2>💡 Помощник</h2><a class="small" href="#/stats">обзор недели ›</a></div>' + App.renderInsights(ins, 4) + '</section>' : '';
+      })() +
 
       '<section class="card">' +
         '<div class="card-head"><h2>Задачи</h2>' +
@@ -80,7 +84,7 @@
         (st.tasks.length ? '<button class="btn small" data-act="manual">+ Добавить время вручную</button>' : '') + '</div>' +
         historyList(todayList) +
       '</section>' +
-      '<p class="hint muted small">Горячие клавиши: <kbd>Пробел</kbd> — старт/стоп последней задачи, <kbd>M</kbd> — звук, <kbd>1</kbd>–<kbd>5</kbd> — разделы.</p>';
+      '<p class="hint muted small">Горячие клавиши: <kbd>Пробел</kbd> — старт/стоп последней задачи, <kbd>M</kbd> — звук, <kbd>1</kbd>–<kbd>7</kbd> — разделы.</p>';
   }
 
   function todayCard(todayList) {
