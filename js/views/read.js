@@ -67,7 +67,8 @@
     return '<div class="seg lang-tabs" role="tablist">' +
       '<a role="tab" class="' + (active === 'cards' ? 'on' : '') + '" href="#/cards">' + I('cards') + ' Карточки</a>' +
       '<a role="tab" class="' + (active === 'read' ? 'on' : '') + '" href="#/read">' + I('book') + ' Чтение</a>' +
-      '<a role="tab" class="' + (active === 'lessons' ? 'on' : '') + '" href="#/lessons">' + I('sparkles') + ' Уроки</a></div>';
+      '<a role="tab" class="' + (active === 'lessons' ? 'on' : '') + '" href="#/lessons">' + I('sparkles') + ' Уроки</a>' +
+      '<a role="tab" class="' + (active === 'theory' ? 'on' : '') + '" href="#/theory">' + I('cards') + ' Теория</a></div>';
   }
   App.langTabs = tabs;
 
@@ -98,7 +99,37 @@
       }).join('') :
         '<div class="card empty-state"><p>Текстов пока нет.</p><p class="muted">Вставь статью, главу книги или текст песни — и нажимай на незнакомые слова.</p>' +
         '<div class="row-btns"><button class="btn primary" data-r="new">Добавить текст</button><button class="btn" data-r="sample">Пример на английском</button></div></div>') +
-      '</div>';
+      '</div>' + libraryHTML();
+  }
+
+  // Встроенная библиотека текстов по уровням
+  function libraryHTML() {
+    const lib = window.LIBRARY || [];
+    if (!lib.length) return '';
+    const mine = new Set(S().texts.map((t) => t.libId).filter(Boolean));
+    const level = S().lessons && S().lessons.level;
+    return '<section class="card"><div class="card-head"><h2 class="h-ic">' + I('book') + ' Библиотека</h2>' +
+      '<span class="muted small">тексты по уровням, написаны для кабинета' + (level ? ' · твой уровень ' + level : '') + '</span></div>' +
+      '<div class="lib-grid">' + lib.map((x) => {
+        const words = x.body.split(/\s+/).length;
+        return '<button class="lib-item' + (level === x.level ? ' mine-level' : '') + '" data-r="lib-open" data-id="' + x.id + '">' +
+          '<span class="lvl-badge">' + x.level + '</span><b>' + U.esc(x.title) + '</b>' +
+          '<small>' + U.esc(x.topic) + ' · ' + Math.max(1, Math.round(words / 150)) + ' мин чтения' + (mine.has(x.id) ? ' · ' + I('check', 'inline') + ' открыт' : '') + '</small></button>';
+      }).join('') + '</div></section>';
+  }
+
+  function openLibrary(id) {
+    const x = (window.LIBRARY || []).find((l) => l.id === id);
+    if (!x) return;
+    let t = S().texts.find((y) => y.libId === id);
+    if (!t) {
+      t = { id: U.uid(), libId: id, created: Date.now(), title: x.title, lang: x.lang, body: x.body };
+      S().texts.push(t);
+      Store.save();
+    }
+    openId = t.id;
+    App.render();
+    window.scrollTo(0, 0);
   }
 
   function renderReader(el, t) {
@@ -476,6 +507,7 @@
     switch (b.dataset.r) {
       case 'new': textModal(); break;
       case 'sample': addSample(); break;
+      case 'lib-open': openLibrary(b.dataset.id); break;
       case 'open': openId = b.dataset.id; App.render(); break;
       case 'back': openId = null; App.render(); break;
       case 'edit': textModal(text(b.dataset.id)); break;

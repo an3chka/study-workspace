@@ -68,11 +68,11 @@
         if (opts.length < 2 || ans < 0 || ans >= opts.length || !e.question) return null;
         // перемешиваем варианты, чтобы правильный не был всегда первым
         const order = shuffle(opts.map((_, i) => i));
-        return { type: 'choice', question: String(e.question), options: order.map((i) => opts[i]), answer: order.indexOf(ans), explain: e.explain || '', level: e.level };
+        return { type: 'choice', question: String(e.question), options: order.map((i) => opts[i]), answer: order.indexOf(ans), explain: e.explain || '', level: e.level, topic: e.topic };
       }
       if (e.type === 'gap') {
         if (!e.sentence || !e.answer || !/_{2,}/.test(e.sentence)) return null;
-        return { type: 'gap', sentence: String(e.sentence), answer: String(e.answer), accept: [e.answer].concat(e.accept || []).map(norm), hint: e.hint || '', explain: e.explain || '' };
+        return { type: 'gap', sentence: String(e.sentence), answer: String(e.answer), accept: [e.answer].concat(e.accept || []).map(norm), hint: e.hint || '', explain: e.explain || '', topic: e.topic };
       }
       if (e.type === 'order') {
         const words = String(e.answer || '').trim().split(/\s+/);
@@ -101,27 +101,34 @@
     if (!r) return;
     const lesson = sanitize(r);
     if (lesson.exercises.length < 3) { U.toast('Урок получился неполным. Попробуй ещё раз или выбери другую модель.'); return; }
-    game = { kind: o.review ? 'review' : 'lesson', lesson, i: -1, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now() };
+    game = { kind: o.review ? 'review' : 'lesson', lesson, i: -1, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), topicId: o.topicId };
     if (!lesson.intro) game.i = 0;
-    App.render();
+    openGame();
+  }
+
+  function openGame() {
+    if (location.hash.startsWith('#/lessons')) App.render(); else location.hash = '#/lessons';
     window.scrollTo(0, 0);
   }
 
-  async function startPlacement(btn) {
-    if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); location.hash = '#/settings'; return; }
-    const r = await AI.run(btn, () => AI.ask({
-      json: true, temperature: 0.5, system: SYSTEM,
-      prompt: 'Составь короткий тест на определение уровня (' + langName() + ') из 12 вопросов с выбором ответа: ' +
-        'по 2 вопроса уровней A1 и A2, по 3 вопроса уровней B1 и B2, 2 вопроса уровня C1. Грамматика и лексика вперемешку. ' +
-        'Верни JSON: {"title": "Тест на уровень", "exercises": [{"type": "choice", "level": "A1", "question": "...", "options": ["...", "...", "...", "..."], "answer": 0, "explain": "по-русски"}]}',
-    }));
-    if (!r) return;
-    const lesson = sanitize(r);
-    lesson.exercises = lesson.exercises.filter((e) => e.type === 'choice');
-    if (lesson.exercises.length < 6) { U.toast('Тест получился неполным. Попробуй ещё раз.'); return; }
+  // Встроенный тест на уровень — без нейросети, мгновенно
+  function startPlacement() {
+    const lesson = sanitize({ title: 'Тест на уровень', exercises: (window.PLACEMENT || []).map((q) => Object.assign({ type: 'choice' }, q)) });
     game = { kind: 'placement', lesson, i: 0, hearts: Infinity, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], byLevel: {}, started: Date.now() };
-    App.render();
+    openGame();
   }
+
+  // Тренировка по теме из «Теории» — тоже без нейросети
+  App.startDrill = function (t) {
+    const lesson = sanitize({ title: 'Тренировка: ' + t.title, intro: '', exercises: t.drill.map((x) => Object.assign({ topic: t.id }, x)) });
+    game = { kind: 'drill', topicId: t.id, lesson, i: 0, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now() };
+    openGame();
+  };
+
+  // Урок от нейросети по теме из «Теории»
+  App.startTopicLesson = function (btn, t) {
+    startLesson(btn, { focus: 'grammar', topic: t.title + ' (' + t.summary + ')', topicId: t.id });
+  };
 
   // ---------- Проверка ответов ----------
 
@@ -143,7 +150,7 @@
     } else {
       game.combo = 0;
       if (game.kind !== 'placement') game.hearts--;
-      game.mistakes.push({ q: e.question || e.sentence || e.translation || e.ru, right: rightText(e), mine: String(mine || '') });
+      game.mistakes.push({ q: e.question || e.sentence || e.translation || e.ru, right: rightText(e), mine: e.type === 'choice' && e.options[Number(mine)] != null ? e.options[Number(mine)] : String(mine || ''), explain: e.explain || '', topic: e.topic || game.topicId || '' });
     }
     App.render();
   }
@@ -178,6 +185,7 @@
       }
       game.result = { level };
       prof.level = level;
+      prof.weakTopics = Array.from(new Set(game.mistakes.map((m) => m.topic).filter(Boolean)));
       prof.history.push({ ts: Date.now(), title: 'Тест на уровень', score: game.right, total, xp: 0, kind: 'placement', level });
     } else {
       const perfect = game.right === total;
@@ -189,7 +197,11 @@
       // запоминаем ошибки (последние 40)
       game.mistakes.forEach((m) => prof.mistakes.push(Object.assign({ ts: Date.now() }, m)));
       prof.mistakes = prof.mistakes.slice(-40);
-      game.result = { stars, ratio, perfect, suggestion: suggestLevel(), done, total };
+      game.result = { stars, ratio, perfect, suggestion: game.kind === 'lesson' ? suggestLevel() : null, done, total };
+      if (game.kind === 'drill' && game.topicId) {
+        prof.theoryDone = prof.theoryDone || {};
+        prof.theoryDone[game.topicId] = Math.max(prof.theoryDone[game.topicId] || 0, Math.round(ratio * 100));
+      }
     }
     S().practice.push({ id: U.uid(), ts: Date.now(), type: 'lesson', sec: Math.round((Date.now() - game.started) / 1000) });
     Store.save();
@@ -256,8 +268,8 @@
     const ready = AI.ready() || !!AI._mock;
     el.innerHTML =
       '<header class="page-head"><div><h1>Языки</h1><p class="muted">Короткие уроки, которые подстраиваются под тебя</p></div></header>' + App.langTabs('lessons') +
-      (!ready ? '<div class="card soft-alert">' + I('sparkles') + '<div><b>Нужна нейросеть.</b> Уроки составляет бесплатная нейросеть — подключи её за 2 минуты в ' +
-        '<a href="#/settings">Настройках → «Нейросеть»</a>.</div></div>' : '') +
+      (!ready ? '<div class="card soft-alert">' + I('sparkles') + '<div><b>Для уроков нужна нейросеть</b> — подключи её в <a href="#/settings">Настройках → «Нейросеть»</a>. ' +
+        'Тест на уровень, <a href="#/theory">теория</a> и тренировки работают и без неё.</div></div>' : '') +
       '<div class="grid-2">' +
         '<section class="card lesson-profile">' +
           '<div class="lp-top"><div class="lp-level"><span>' + (prof.level || '?') + '</span><small>' + (prof.level ? LEVEL_TXT[prof.level] : 'уровень не задан') + '</small></div>' +
@@ -266,7 +278,7 @@
           '<span class="muted small">всего ' + prof.xp + ' XP · сегодня уроков: ' + todayLessons + '</span></div></div>' +
           '<div class="row"><label>Язык<select data-l="lang">' + (App.LANGS || []).filter((l) => l[0] && l[0] !== 'ru-RU').map(([c, n]) => '<option value="' + c + '"' + (c === prof.lang ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
           '<label>Мой уровень<select data-l="level"><option value="">не знаю</option>' + LEVELS.map((l) => '<option' + (l === prof.level ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label></div>' +
-          '<button class="btn" data-l="placement">' + I('target') + ' ' + (prof.level ? 'Пройти тест на уровень заново' : 'Определить уровень тестом (12 вопросов)') + '</button>' +
+          '<button class="btn" data-l="placement">' + I('target') + ' ' + (prof.level ? 'Пройти тест на уровень заново' : 'Определить уровень тестом (20 вопросов, без нейросети)') + '</button>' +
         '</section>' +
         '<section class="card lesson-start">' +
           '<h2>Новый урок</h2>' +
@@ -336,7 +348,10 @@
         (a.better && !a.correct ? '<p>Твой вариант, исправленный: <i>' + U.esc(a.better) + '</i></p>' : '') +
         (a.feedback ? '<p>' + U.esc(a.feedback) + '</p>' : '') +
         (e.explain ? '<p class="muted">' + U.esc(e.explain) + '</p>' : '') +
-        '<button class="btn primary" data-l="next" id="next-btn">' + (game.hearts <= 0 ? 'Завершить' : 'Дальше') + ' ' + I('chevron-right') + '</button></div>';
+        '<div class="fb-actions"><button class="btn primary" data-l="next" id="next-btn">' + (game.hearts <= 0 ? 'Завершить' : 'Дальше') + ' ' + I('chevron-right') + '</button>' +
+        (e.topic && App.grammarTopic(e.topic) ? '<a class="btn ghost small" href="#/theory/' + e.topic + '" target="_self">' + I('book') + ' Теория: ' + U.esc(App.grammarTopic(e.topic).title) + '</a>' : '') +
+        '<button class="btn ghost small" data-l="ask-open">' + I('sparkles') + ' Спросить про это задание</button></div>' +
+        '<div id="ex-ask"></div></div>';
     }
     el.innerHTML = '<div class="game">' + top + '<div class="card game-card">' + body + '</div>' + fb + '</div>';
     const inp = el.querySelector('#gap-form input:not([disabled]), #tr-form textarea:not([disabled])');
@@ -350,10 +365,15 @@
   function renderResult(el) {
     const r = game.result;
     if (game.kind === 'placement') {
+      const topics = P().weakTopics || [];
       el.innerHTML = '<div class="game"><div class="card game-card result">' +
         '<div class="result-badge">' + r.level + '</div><h2>Твой уровень: ' + r.level + ' — ' + LEVEL_TXT[r.level] + '</h2>' +
         '<p class="muted">Верно ' + game.right + ' из ' + game.lesson.exercises.length + '. Уроки теперь будут под этот уровень. Его всегда можно поменять вручную.</p>' +
-        '<button class="btn primary big" data-l="home">К урокам ' + I('chevron-right') + '</button></div></div>';
+        '<div class="lvl-bars">' + LEVELS.map((lv) => { const b = game.byLevel[lv]; if (!b) return ''; return '<div class="lvl-bar"><span>' + lv + '</span><div class="progress"><span style="width:' + (b.ok / b.n * 100) + '%"></span></div><small>' + b.ok + '/' + b.n + '</small></div>'; }).join('') + '</div>' +
+        (topics.length ? '<div class="mistakes"><h3>Темы, которые стоит подтянуть</h3><div class="topic-chips">' +
+          topics.map((id) => App.grammarTopic(id)).filter(Boolean).map((t) => '<a class="chip" href="#/theory/' + t.id + '">' + I('book') + ' ' + U.esc(t.title) + '</a>').join('') + '</div></div>' : '') +
+        mistakesHTML() +
+        '<div class="row-btns"><a class="btn" href="#/theory">' + I('book') + ' К теории</a><button class="btn primary" data-l="home">К урокам ' + I('chevron-right') + '</button></div></div></div>';
       return;
     }
     const lost = game.hearts <= 0;
@@ -364,12 +384,67 @@
       '<p>Верно <b>' + game.right + '</b> из ' + r.total + ' · <span class="xp-pill">+' + game.xp + ' XP</span>' + (r.perfect ? ' <span class="tag new">бонус +20</span>' : '') + '</p>' +
       (s ? '<div class="level-suggest">' + (s.dir === 'up' ? I('trend-up') + ' Ты стабильно справляешься — попробуешь уровень <b>' + s.to + '</b>?' : I('trend-down') + ' Похоже, сейчас сложновато. Немного снизим до <b>' + s.to + '</b>?') +
         ' <button class="btn small primary" data-l="set-level" data-v="' + s.to + '">Да</button></div>' : '') +
-      (game.mistakes.length ? '<div class="mistakes"><h3>Над чем поработать</h3><ul>' + game.mistakes.map((m) =>
-        '<li><span class="muted">' + U.esc(m.q) + '</span><br>' + (m.mine ? '<s>' + U.esc(m.mine) + '</s> → ' : '') + '<b>' + U.esc(m.right) + '</b></li>').join('') + '</ul>' +
-        '<p class="muted small">Эти ошибки попадут в «Работу над ошибками» и в следующие уроки.</p></div>' : '') +
+      mistakesHTML('Эти ошибки попадут в «Работу над ошибками» и в следующие уроки.') +
       '<div class="row-btns"><button class="btn" data-l="home">К урокам</button><button class="btn primary" data-l="again">' + I('play') + ' Ещё урок</button></div>' +
       '</div></div>';
   }
+
+  function mistakesHTML(note) {
+    if (!game.mistakes.length) return '';
+    return '<div class="mistakes"><h3>Разбор ошибок</h3><ul>' + game.mistakes.map((m) => {
+      const t = m.topic && App.grammarTopic(m.topic);
+      return '<li><span class="muted">' + U.esc(m.q) + '</span><br>' + (m.mine ? '<s>' + U.esc(m.mine) + '</s> → ' : '') + '<b>' + U.esc(m.right) + '</b>' +
+        (m.explain ? '<div class="small">' + U.esc(m.explain) + '</div>' : '') +
+        (t ? '<a class="small" href="#/theory/' + t.id + '">' + I('book') + ' ' + U.esc(t.title) + '</a>' : '') + '</li>';
+    }).join('') + '</ul>' + (note ? '<p class="muted small">' + note + '</p>' : '') + '</div>';
+  }
+
+  // ---------- Вопрос нейросети («Спросить») ----------
+
+  const askHistory = {};
+  App.askBoxHTML = function (id, title, placeholder) {
+    const h = askHistory[id] || [];
+    return '<section class="card ask-box" data-ask="' + id + '"><h2 class="h-ic">' + I('sparkles') + ' ' + U.esc(title) + '</h2>' +
+      '<div class="ask-log">' + h.map((m) => '<div class="ask-msg ' + m.role + '">' + (m.role === 'user' ? U.esc(m.text) : App.md(m.text)) + '</div>').join('') + '</div>' +
+      '<form class="ask-form"><textarea name="q" rows="2" maxlength="600" placeholder="' + U.esc(placeholder || 'Задай вопрос') + '"></textarea>' +
+      '<button class="btn primary">Спросить</button></form>' +
+      '<p class="muted small">1 вопрос = 1 запрос к нейросети.</p></section>';
+  };
+  App.bindAskBox = function (el, id, contextFn) {
+    const box = el.querySelector('[data-ask="' + id + '"]');
+    if (!box) return;
+    const form = box.querySelector('form');
+    const ta = form.querySelector('textarea');
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = ta.value.trim();
+      if (!q) return;
+      if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); return; }
+      const h = askHistory[id] = askHistory[id] || [];
+      const log = box.querySelector('.ask-log');
+      log.insertAdjacentHTML('beforeend', '<div class="ask-msg user">' + U.esc(q) + '</div>');
+      ta.value = '';
+      const answer = await AI.run(form.querySelector('button'), () => AI.ask({
+        temperature: 0.4,
+        system: 'Ты — добрая преподавательница английского для русскоязычной студентки. Отвечай по-русски, понятно и коротко (до 120 слов), ' +
+          'приводи 1–2 примера на английском с переводом. Можно выделять важное **жирным**. Если вопрос не про язык, мягко верни к теме.\n\nКонтекст:\n' + contextFn(),
+        prompt: h.concat([{ role: 'user', text: q }]),
+      }));
+      if (!answer) return;
+      h.push({ role: 'user', text: q }, { role: 'assistant', text: answer });
+      if (h.length > 12) h.splice(0, h.length - 12);
+      log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">' + App.md(answer) + '</div>');
+    });
+  };
+
+  App.speak = function (text, lang) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang || P().lang || 'en-US'; u.rate = 0.9;
+    speechSynthesis.speak(u);
+  };
 
   // ---------- События ----------
 
@@ -382,7 +457,23 @@
       case 'focus': focus = b.dataset.v; App.render(); break;
       case 'start': startLesson(b, { focus, topic: (root.querySelector('#lesson-topic') || {}).value }); break;
       case 'review': startLesson(b, { review: true }); break;
-      case 'placement': startPlacement(b); break;
+      case 'placement': startPlacement(); break;
+      case 'ask-open': {
+        const holder = root.querySelector('#ex-ask');
+        if (!holder || holder.innerHTML) break;
+        const id = 'ex-' + game.i + '-' + game.started;
+        holder.innerHTML = App.askBoxHTML(id, 'Вопрос про задание', 'Например: «почему здесь не Past Simple?»');
+        App.bindAskBox(holder, id, () => {
+          const a = game.answered || {};
+          return 'Задание из урока: ' + (ex.question || ex.sentence || ex.translation || ex.ru) + '\n' +
+            (ex.options ? 'Варианты: ' + ex.options.join(' / ') + '\n' : '') +
+            'Правильный ответ: ' + rightText(ex) + '\nОтвет ученицы: ' + (ex.type === 'choice' && ex.options[Number(a.mine)] != null ? ex.options[Number(a.mine)] : (a.mine || '')) +
+            (a.correct ? ' (верно)' : ' (неверно)') + (ex.explain ? '\nКраткое объяснение: ' + ex.explain : '') + '\nУровень ученицы: ' + (P().level || 'неизвестен');
+        });
+        holder.querySelector('textarea').focus();
+        b.remove();
+        break;
+      }
       case 'again': game = null; App.render(); startLesson(root.querySelector('[data-l=start]'), { focus }); break;
       case 'home': game = null; App.render(); break;
       case 'quit':
@@ -397,7 +488,7 @@
         answer(norm(mine) === norm(ex.answer), mine);
         break;
       }
-      case 'speak': speak(b.dataset.t); break;
+      case 'speak': App.speak(b.dataset.t); break;
       case 'set-level': P().level = b.dataset.v; Store.save(); U.toast('Уровень теперь ' + b.dataset.v); b.closest('.level-suggest').remove(); break;
     }
   });
