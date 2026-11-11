@@ -17,16 +17,25 @@
     return s.ai;
   }
 
+  // Короткая выдержка из ответа сервиса — чтобы было видно настоящую причину
+  function detail(text) {
+    let msg = String(text || '');
+    try { const j = JSON.parse(msg); msg = (j.error && (j.error.message || j.error.status)) || j.message || msg; } catch (e) { /* не JSON */ }
+    msg = String(msg).replace(/\s+/g, ' ').trim();
+    return msg ? ' (ответ сервиса: «' + msg.slice(0, 140) + (msg.length > 140 ? '…' : '') + '»)' : '';
+  }
+
   function friendlyError(status, text) {
     const t = String(text || '').toLowerCase();
     if (/location is not supported|user location|not available in your country|region/.test(t)) {
       return 'Сервис недоступен в твоём регионе. Включи VPN или выбери OpenRouter в настройках.';
     }
-    if (status === 401 || status === 403 || /api key not valid|invalid api key|unauthorized/.test(t)) return 'Ключ не подошёл. Проверь его в Настройках → «Нейросеть».';
+    if (/api key not valid|invalid api key|api_key_invalid|unauthorized|no auth|user not found/.test(t) || status === 401) return 'Ключ не подошёл. Проверь, что он скопирован целиком и выбран нужный сервис.' + detail(text);
+    if (status === 403) return 'Доступ запрещён. Для Gemini обычно это значит: нет VPN или в Google Cloud выключен доступ к API для этого ключа.' + detail(text);
     if (status === 429 || /quota|rate limit|resource_exhausted/.test(t)) return 'Лимит бесплатных запросов исчерпан. Попробуй позже или выбери другую модель.';
     if (status === 404) return 'Модель не найдена. Выбери другую в Настройках → «Нейросеть».';
     if (status >= 500) return 'Сервис нейросети сейчас перегружен. Попробуй через минуту.';
-    return 'Ошибка нейросети (' + status + '): ' + String(text || '').slice(0, 160);
+    return 'Ошибка нейросети (' + status + ').' + detail(text);
   }
 
   async function request(url, opts, timeoutMs) {
@@ -73,6 +82,31 @@
 
     ready() { const c = cfg(); return c.provider === 'custom' ? !!c.baseUrl : !!c.key; },
 
+    // Переключение сервиса: у каждого свой ключ
+    setProvider(p) {
+      const c = cfg();
+      c.keys = c.keys || {};
+      c.keys[c.provider] = c.key || '';
+      c.provider = p;
+      c.key = c.keys[p] || '';
+      c.model = ''; c.models = []; c.autoModel = ''; c.lastTest = null;
+      Store.save();
+    },
+
+    // Подсказка, если ключ явно от другого сервиса
+    keyProblem() {
+      const c = cfg();
+      const k = String(c.key || '').trim();
+      if (!k) return '';
+      if (/\s/.test(k)) return 'В ключе есть пробел или перенос строки — скопируй его заново.';
+      if (c.provider === 'gemini' && /^sk-/.test(k)) return 'Это похоже на ключ OpenRouter, а выбран Gemini. Ключ Gemini начинается с «AIza».';
+      if (c.provider === 'openrouter' && /^AIza/.test(k)) return 'Это ключ Gemini, а выбран OpenRouter. Переключи «Сервис» на Gemini.';
+      if (c.provider === 'gemini' && !/^AIza/.test(k)) return 'Ключ Gemini обычно начинается с «AIza». Проверь, что скопирован именно API key.';
+      if (c.provider === 'gemini' && k.length < 35) return 'Ключ слишком короткий — похоже, скопировался не целиком.';
+      if (c.provider === 'openrouter' && !/^sk-or-/.test(k)) return 'Ключ OpenRouter обычно начинается с «sk-or-». Проверь, что скопирован целиком.';
+      return '';
+    },
+
     model() { const c = cfg(); return c.model || ((c.provider === 'gemini' || c.provider === 'openrouter') && c.autoModel) || PROVIDERS[c.provider].defaultModel; },
 
     // Отправить запрос. system — инструкция, prompt — текст (или массив сообщений {role, text}).
@@ -81,6 +115,8 @@
       if (AI._mock) { countUse(); const r = await AI._mock(o); return o.json ? (typeof r === 'string' ? parseJSON(r) : r) : r; }
       const c = cfg();
       if (!AI.ready()) throw new Error('Нейросеть не подключена. Открой Настройки → «Нейросеть».');
+      const kp = AI.keyProblem();
+      if (kp) throw new Error(kp);
       // Для Gemini один раз подбираем свежую модель из списка (названия моделей у Google меняются)
       if (c.provider === 'gemini' && !c.model && !c.autoModel) {
         try { const list = await AI.listModels(); if (list[0]) { c.autoModel = list[0].id; Store.saveSoon(); } } catch (e) { /* возьмём модель по умолчанию */ }

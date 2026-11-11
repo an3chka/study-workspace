@@ -100,6 +100,7 @@
         (c.provider === 'custom' ? '<label>Адрес (OpenAI-совместимый)<input name="baseUrl" value="' + U.esc(c.baseUrl || '') + '" placeholder="http://localhost:11434/v1"></label>' : '') +
         '<label>Ключ' + (c.provider === 'custom' ? ' (если нужен)' : '') + '<span class="inline-row"><input name="key" type="password" autocomplete="off" value="' + U.esc(c.key || '') + '" placeholder="вставь ключ сюда">' +
           '<button type="button" class="btn" data-s="ai-show">' + I('eye') + '</button></span></label>' +
+        (AI.keyProblem() ? '<div class="ai-status bad">' + I('alert') + '<span>' + U.esc(AI.keyProblem()) + '</span></div>' : '') +
         '<label>Модель<span class="inline-row"><select name="model"><option value="">' + U.esc(AI.model()) + ' (по умолчанию)</option>' +
           (c.models || []).map((m) => '<option value="' + U.esc(m.id) + '"' + (m.id === c.model ? ' selected' : '') + '>' + U.esc(m.label) + '</option>').join('') +
         '</select><button type="button" class="btn" data-s="ai-models">Загрузить список</button></span></label>' +
@@ -127,8 +128,9 @@
     if (t.form && t.form.id === 'ai-form') {
       const c = AI.cfg();
       c.lastTest = null;
-      if (t.name === 'provider') { c.provider = t.value; c.model = ''; c.models = []; c.autoModel = ''; }
-      else { c[t.name] = t.value.trim(); if (t.name === 'key') c.autoModel = ''; }
+      if (t.name === 'provider') { AI.setProvider(t.value); App.render(); return; }
+      c[t.name] = t.value.trim();
+      if (t.name === 'key') { c.autoModel = ''; c.keys = c.keys || {}; c.keys[c.provider] = c.key; }
       Store.save();
       if (t.name === 'provider' || t.name === 'key') App.render();
       return;
