@@ -116,10 +116,6 @@
       if (!AI.ready()) throw new Error('Нейросеть не подключена. Открой Настройки → «Нейросеть».');
       const kp = AI.keyProblem();
       if (kp) throw new Error(kp);
-      // Для Gemini один раз подбираем свежую модель из списка (названия моделей у Google меняются)
-      if (c.provider === 'gemini' && !c.model && !c.autoModel && !/^AQ\./.test(String(c.key || ''))) {
-        try { const list = await AI.listModels(); if (list[0]) { c.autoModel = list[0].id; Store.saveSoon(); } } catch (e) { /* возьмём модель по умолчанию */ }
-      }
       const messages = Array.isArray(o.prompt) ? o.prompt : [{ role: 'user', text: o.prompt }];
       const system = (o.system || '') + (o.json ? '\nОтвечай ТОЛЬКО валидным JSON без пояснений и без ```.' : '');
       let text;
@@ -130,20 +126,27 @@
         };
         if (system.trim()) body.systemInstruction = { parts: [{ text: system }] };
         if (o.json) body.generationConfig.responseMimeType = 'application/json';
-        // Ключи нового формата (AQ.…) могут работать через Vertex AI — пробуем оба адреса Google
-        const endpoints = geminiEndpoints(AI.model());
-        let data = null, firstErr = null;
-        for (const ep of endpoints) {
-          try {
-            data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) });
-            if (c.endpoint !== ep.kind) { c.endpoint = ep.kind; Store.saveSoon(); }
-            break;
-          } catch (e) {
-            firstErr = firstErr || e;
-            if (/регионе|Нет связи/.test(e.message)) break;
+        // Перебираем модели (названия у Google меняются) и адреса (ключи AQ.… могут работать через Vertex AI)
+        const models = c.model ? [c.model] : await geminiCandidates();
+        let data = null, firstErr = null, lastErr = null;
+        outer: for (const model of models) {
+          for (const ep of geminiEndpoints(model)) {
+            AI.status = 'спрашиваю ' + model + '…';
+            try {
+              data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) });
+              if (c.endpoint !== ep.kind || (!c.model && c.autoModel !== model)) { c.endpoint = ep.kind; if (!c.model) c.autoModel = model; Store.saveSoon(); }
+              break outer;
+            } catch (e) {
+              lastErr = e;
+              if (!/Модель не найдена/.test(e.message)) firstErr = firstErr || e;
+              // ключ, регион, связь — дальше перебирать бессмысленно
+              if (/регионе|Нет связи|Ключ не подошёл/.test(e.message) && !/^AQ\./.test(String(c.key))) break outer;
+            }
           }
+          if (c.autoModel === model) c.autoModel = '';
         }
-        if (!data) throw firstErr;
+        AI.status = '';
+        if (!data) throw (firstErr || new Error((lastErr ? lastErr.message : 'Модель не найдена.') + ' Перепробовала: ' + models.join(', ') + '.'));
         const cand = data.candidates && data.candidates[0];
         text = cand && cand.content && cand.content.parts ? cand.content.parts.map((p) => p.text || '').join('') : '';
         if (!text) throw new Error(cand && cand.finishReason === 'SAFETY' ? 'Нейросеть отказалась отвечать на этот запрос.' : 'Пустой ответ от нейросети.');
@@ -221,6 +224,19 @@
       return r;
     },
   };
+
+  // Какие модели Gemini пробовать: запомненная → из списка Google → известные названия
+  async function geminiCandidates() {
+    const c = cfg();
+    const out = [];
+    if (c.autoModel) out.push(c.autoModel);
+    try {
+      const list = await AI.listModels();
+      list.slice(0, 2).forEach((m) => out.push(m.id));
+    } catch (e) { /* список недоступен — возьмём известные названия */ }
+    ['gemini-flash-latest', 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-lite-latest'].forEach((m) => out.push(m));
+    return Array.from(new Set(out)).slice(0, 6);
+  }
 
   function geminiEndpoints(model) {
     const c = cfg();
