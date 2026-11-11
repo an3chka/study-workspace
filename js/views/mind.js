@@ -103,13 +103,17 @@
           scale('energy', 'Энергия', [1, 2, 3, 4, 5].map((v) => [v, String(v), ['', 'нет сил', 'мало', 'средне', 'бодро', 'полна сил'][v]]), 0) +
           scale('stress', 'Тревога / стресс', [1, 2, 3, 4, 5].map((v) => [v, String(v), ['', 'спокойно', 'чуть-чуть', 'заметно', 'сильно', 'очень сильно'][v]]), 0) +
           '<div class="tags-pick">' + TAGS.map((t) => '<label class="chip-check"><input type="checkbox" name="tag" value="' + U.esc(t) + '"><span>' + U.esc(t) + '</span></label>').join('') + '</div>' +
-          '<div class="row"><label>Сон, часов<input type="number" name="sleep" min="0" max="24" step="0.5" placeholder="например, 7.5"></label><span></span></div>' +
+          '<fieldset class="sleep-field"><legend>Сон этой ночью (необязательно)</legend>' +
+            '<div class="sleep-row"><select name="sleepH" aria-label="Часы сна"><option value="">—</option>' + Array.from({ length: 15 }, (_, h) => '<option value="' + h + '">' + h + '</option>').join('') + '</select><span>ч</span>' +
+            '<select name="sleepM" aria-label="Минуты сна">' + Array.from({ length: 12 }, (_, k) => '<option value="' + (k * 5) + '">' + U.pad(k * 5) + '</option>').join('') + '</select><span>мин</span></div>' +
+            '<div class="sleep-row muted small">или посчитать: легла <input type="time" name="bed" aria-label="Во сколько легла"> встала <input type="time" name="wake" aria-label="Во сколько встала"></div>' +
+          '</fieldset>' +
           '<textarea name="note" rows="2" maxlength="500" placeholder="Пара слов о дне (необязательно)" aria-label="Заметка"></textarea>' +
           '<button class="btn primary">Сохранить отметку</button>' +
         '</form>' +
         (todays.length ? '<h3>Сегодня</h3><ul class="mood-today">' + todays.map((m) =>
           '<li><span class="mood-emoji">' + MOODS[m.mood] + '</span><span class="muted small">' + U.timeLabel(m.ts) + '</span>' +
-          '<span class="small">энергия ' + m.energy + ' · стресс ' + m.stress + (m.sleep ? ' · сон ' + m.sleep + ' ч' : '') + (m.tags && m.tags.length ? ' · ' + U.esc(m.tags.join(', ')) : '') + '</span>' +
+          '<span class="small">энергия ' + m.energy + ' · стресс ' + m.stress + (m.sleep ? ' · сон ' + U.human(m.sleep * 3600) : '') + (m.tags && m.tags.length ? ' · ' + U.esc(m.tags.join(', ')) : '') + '</span>' +
           (m.note ? '<span class="small mood-note">' + U.esc(m.note) + '</span>' : '') +
           '<button class="icon-btn small" data-m="del-mood" data-id="' + m.id + '" aria-label="Удалить отметку">' + I('x') + '</button></li>').join('') + '</ul>' : '') +
       '</section>' +
@@ -283,7 +287,7 @@
       const m = {
         id: U.uid(), ts: Date.now(), day: U.dayKey(Date.now()),
         mood: Number(fd.get('mood')) || 3, energy: Number(fd.get('energy')) || 3, stress: Number(fd.get('stress')) || 3,
-        sleep: Number(fd.get('sleep')) || null, tags: fd.getAll('tag'), note: String(fd.get('note') || '').trim(),
+        sleep: fd.get('sleepH') !== '' && fd.get('sleepH') != null ? (Number(fd.get('sleepH')) + Number(fd.get('sleepM') || 0) / 60) || null : null, tags: fd.getAll('tag'), note: String(fd.get('note') || '').trim(),
       };
       S().mood.push(m);
       Store.save(); App.render();
@@ -298,6 +302,18 @@
       S().journal.push({ id: U.uid(), ts: Date.now(), type: ex.def.id, text });
       finishExercise((Date.now() - ex.started) / 1000);
     }
+  });
+
+  // «Легла / встала» → сразу подставляем часы и минуты сна
+  document.addEventListener('input', (e) => {
+    if (!root || !e.target.form || e.target.form.id !== 'mood-form' || !['bed', 'wake'].includes(e.target.name)) return;
+    const f = e.target.form;
+    if (!f.bed.value || !f.wake.value) return;
+    const toMin = (v) => { const [h, m] = v.split(':').map(Number); return h * 60 + m; };
+    let d = toMin(f.wake.value) - toMin(f.bed.value);
+    if (d <= 0) d += 24 * 60;
+    f.sleepH.value = String(Math.min(14, Math.floor(d / 60)));
+    f.sleepM.value = String(Math.round((d % 60) / 5) * 5 % 60);
   });
 
   App.views.mind = {

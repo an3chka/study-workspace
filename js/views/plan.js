@@ -55,6 +55,7 @@
         (sum.total ? '<div class="plan-progress"><div class="progress"><span style="width:' + pct + '%"></span></div><span class="muted small">' + sum.done + ' из ' + sum.total + ' · ' + U.human(sum.plannedMin * 60) + ' запланировано</span></div>' : '') +
       '</div>' +
 
+      (isToday ? carryCard() : '') +
       '<section class="card">' +
         (list.length ? '<ol class="timeline">' + list.map((b) => {
           const s = toMin(b.start), e = toMin(b.end);
@@ -98,6 +99,23 @@
       '<p class="hint muted small">Если название совпадает с задачей из «Сегодня», блок можно запустить таймером — и время запишется в статистику.</p>';
   }
 
+  // Несделанные блоки за последние 7 дней, которые ещё не переносили и не скрывали
+  function leftovers() {
+    const today = U.dayKey(Date.now());
+    const weekAgo = U.dayKey(U.addDays(U.startOfDay(Date.now()), -7));
+    return S().plan.filter((b) => !b.done && !b.carried && !b.skipped && b.day < today && b.day >= weekAgo)
+      .sort((a, b) => (a.day + a.start).localeCompare(b.day + b.start));
+  }
+
+  function carryCard() {
+    const left = leftovers();
+    if (!left.length) return '';
+    return '<section class="card carry"><div class="card-head"><h2 class="h-ic">' + I('calendar') + ' Незавершённое с прошлых дней</h2></div>' +
+      '<ul class="carry-list">' + left.slice(0, 6).map((b) => '<li><span class="muted small">' + U.dateLabel(new Date(b.day + 'T12:00:00').getTime()) + ', ' + b.start + '</span> ' + U.esc(b.title) + '</li>').join('') +
+      (left.length > 6 ? '<li class="muted small">и ещё ' + (left.length - 6) + '</li>' : '') + '</ul>' +
+      '<div class="row-btns"><button class="btn primary" data-pl="carry">Перенести на сегодня (' + left.length + ')</button><button class="btn ghost" data-pl="skip-left">Не нужно</button></div></section>';
+  }
+
   function findTask(title) {
     const t = title.trim().toLowerCase();
     return S().tasks.find((x) => !x.archived && x.name.trim().toLowerCase() === t);
@@ -138,6 +156,21 @@
       case 'edit': if (b) blockModal(b); break;
       case 'start': if (b && b.taskId) { S().settings.lastTask = b.taskId; Timer.start(b.taskId, S().settings.lastMode || 'watch'); } break;
       case 'stop': Timer.stop(); break;
+      case 'carry': {
+        const key = U.dayKey(Date.now());
+        const left = leftovers();
+        left.forEach((x) => {
+          S().plan.push({ id: U.uid(), day: key, start: x.start, end: x.end, title: x.title, taskId: x.taskId, done: false });
+          x.carried = true;
+        });
+        Store.save(); App.render();
+        U.toast('Перенесено на сегодня: ' + left.length);
+        break;
+      }
+      case 'skip-left':
+        leftovers().forEach((x) => { x.skipped = true; });
+        Store.save(); App.render();
+        break;
       case 'clear':
         if (await App.confirm('Удалить все блоки на этот день?')) {
           const key = U.dayKey(dayTs());

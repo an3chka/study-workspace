@@ -8,6 +8,35 @@
   let period = 'week';
   let offset = 0; // 0 = текущий период, -1 = предыдущий и т.д.
   let root = null;
+  let filter = 'all'; // 'all' | 'cat:<id>' | 'task:<id>'
+
+  // Оставляем только записи выбранной задачи или категории.
+  function applyFilter(list) {
+    if (filter === 'all') return list;
+    const [kind, id] = filter.split(/:(.+)/);
+    if (kind === 'task') return list.filter((x) => x.taskId === id);
+    return list.filter((x) => { const t = Store.task(x.taskId); return (t ? t.categoryId : 'none') === id; });
+  }
+
+  function filterGoal() {
+    if (filter === 'all') return Stats.goalSec();
+    if (filter.startsWith('task:')) { const t = Store.task(filter.slice(5)); return t && t.goalMin ? t.goalMin * 60 : 0; }
+    return 0;
+  }
+
+  function filterName() {
+    if (filter.startsWith('task:')) { const t = Store.task(filter.slice(5)); return t ? t.name : 'задача'; }
+    if (filter.startsWith('cat:')) return Store.category(filter.slice(4)).name;
+    return '';
+  }
+
+  // Серия для фильтра: дни подряд, когда этим вообще занималась
+  function filterStreak(byDay) {
+    let cur = 0, d = U.startOfDay(Date.now());
+    if (!((byDay[U.dayKey(d)] || 0) >= 60)) d = U.addDays(d, -1);
+    while ((byDay[U.dayKey(d)] || 0) >= 60) { cur++; d = U.addDays(d, -1); }
+    return cur;
+  }
 
   function range() {
     const now = Date.now();
@@ -25,8 +54,7 @@
     return { from, to: U.addMonths(from, 1), title: U.MONTHS_NOM[d.getMonth()] + ' ' + d.getFullYear() };
   }
 
-  function chartItems(r, list) {
-    const goal = Stats.goalSec();
+  function chartItems(r, list, goal) {
     if (period === 'day') {
       // По часам
       const hours = new Array(24).fill(0);
@@ -50,9 +78,8 @@
     return { items, goal };
   }
 
-  function heatmap() {
-    const byDay = Stats.byDay();
-    const goal = Stats.goalSec() || 3600;
+  function heatmap(byDay, goal) {
+    goal = goal || 3600;
     const weeks = 18;
     const start = U.addDays(U.startOfWeek(Date.now()), -(weeks - 1) * 7);
     const today = U.startOfDay(Date.now());
@@ -74,28 +101,29 @@
   function render(el) {
     root = el;
     const r = range();
-    const list = Stats.inRange(r.from, r.to);
+    const list = applyFilter(Stats.inRange(r.from, r.to));
+    const allByDay = Stats.byDay(applyFilter(Stats.sessions()));
     const total = Stats.sum(list);
     const days = Math.round((Math.min(r.to, U.addDays(U.startOfDay(Date.now()), 1)) - r.from) / 86400000);
     const byDay = Stats.byDay(list);
     const activeDays = Object.keys(byDay).filter((k) => byDay[k] >= 60).length;
-    const goal = Stats.goalSec();
+    const goal = filterGoal();
     const goalDays = goal ? Object.keys(byDay).filter((k) => byDay[k] >= goal).length : 0;
-    const streak = Stats.streak();
+    const streak = filter === 'all' ? Stats.streak() : { current: filterStreak(allByDay), best: null };
     const tasks = Stats.byTask(list);
     const cats = Stats.byCategory(list);
-    const ch = chartItems(r, list);
+    const ch = chartItems(r, list, goal);
 
     // Сравнение с прошлым периодом
     let prevFrom, prevTo;
     if (period === 'day') { prevFrom = U.addDays(r.from, -1); prevTo = r.from; }
     else if (period === 'week') { prevFrom = U.addDays(r.from, -7); prevTo = r.from; }
     else { prevFrom = U.addMonths(r.from, -1); prevTo = r.from; }
-    const prev = Stats.sum(Stats.inRange(prevFrom, prevTo));
+    const prev = Stats.sum(applyFilter(Stats.inRange(prevFrom, prevTo)));
     const diff = prev ? Math.round((total - prev) / prev * 100) : null;
 
     el.innerHTML =
-      '<header class="page-head"><div><h1>Статистика</h1><p class="muted">Сколько времени ушло на задачи и категории</p></div></header>' +
+      '<header class="page-head"><div><h1>Статистика</h1><p class="muted">' + (filter === 'all' ? 'Сколько времени ушло на задачи и категории' : 'Только: <b>' + U.esc(filterName()) + '</b>') + '</p></div></header>' +
 
       '<div class="card stats-bar">' +
         '<div class="seg" role="group" aria-label="Период">' +
@@ -106,6 +134,11 @@
           '<b>' + U.esc(r.title) + '</b>' +
           '<button class="icon-btn" data-st="next" aria-label="Следующий период"' + (offset >= 0 ? ' disabled' : '') + '>' + I('chevron-right') + '</button>' +
         '</div>' +
+        '<select class="stats-filter" data-st="filter-select" aria-label="Что показывать">' +
+          '<option value="all">Все задачи</option>' +
+          '<optgroup label="Категории">' + Store.state.categories.map((c) => '<option value="cat:' + c.id + '"' + (filter === 'cat:' + c.id ? ' selected' : '') + '>' + U.esc(c.name) + '</option>').join('') + '</optgroup>' +
+          '<optgroup label="Задачи">' + Store.state.tasks.map((t) => '<option value="task:' + t.id + '"' + (filter === 'task:' + t.id ? ' selected' : '') + '>' + U.esc(t.name) + (t.archived ? ' (архив)' : '') + '</option>').join('') + '</optgroup>' +
+        '</select>' +
       '</div>' +
 
       '<div class="kpis">' +
@@ -115,8 +148,9 @@
           : kpi('В среднем за день', U.human(total / Math.max(1, days)), activeDays + ' ' + U.plural(activeDays, ['активный день', 'активных дня', 'активных дней']))) +
         (period === 'day'
           ? kpi('Записей', String(list.length), list.filter((s) => s.kind === 'pomo').length + ' pomodoro')
-          : kpi('Цель выполнена', goalDays + ' из ' + days, U.plural(days, ['день', 'дня', 'дней']))) +
-        kpi('Серия', '<span class="flame">' + I('flame') + streak.current + '</span>', 'лучшая: ' + streak.best + ' ' + U.plural(streak.best, ['день', 'дня', 'дней'])) +
+          : goal ? kpi('Цель выполнена', goalDays + ' из ' + days, U.plural(days, ['день', 'дня', 'дней']))
+            : kpi('Занималась', activeDays + ' из ' + days, U.plural(days, ['день', 'дня', 'дней']))) +
+        kpi('Серия', '<span class="flame">' + I('flame') + streak.current + '</span>', streak.best != null ? 'лучшая: ' + streak.best + ' ' + U.plural(streak.best, ['день', 'дня', 'дней']) : 'дней подряд с этим') +
       '</div>' +
 
       '<section class="card"><div class="card-head"><h2>' + (period === 'day' ? 'По часам' : 'По дням') + '</h2>' +
@@ -125,24 +159,24 @@
       '</section>' +
 
       '<div class="grid-2">' +
-        '<section class="card"><h2>По категориям</h2>' + breakdown(cats, total) + '</section>' +
-        '<section class="card"><h2>По задачам</h2>' + breakdown(tasks, total, true) + '</section>' +
+        '<section class="card"><h2>По категориям</h2>' + breakdown(cats, total, false, 'cat') + '</section>' +
+        '<section class="card"><h2>По задачам</h2>' + breakdown(tasks, total, true, 'task') + '</section>' +
       '</div>' +
 
-      '<section class="card assistant"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Помощник: обзор последних 7 дней</h2></div>' + App.renderInsights(App.insightsWeek()) + '</section>' +
+      (filter === 'all' ? '<section class="card assistant"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Помощник: обзор последних 7 дней</h2></div>' + App.renderInsights(App.insightsWeek()) + '</section>' : '') +
 
-      '<section class="card"><div class="card-head"><h2>Календарь активности</h2><span class="muted small">последние 18 недель</span></div>' + heatmap() + '</section>';
+      '<section class="card"><div class="card-head"><h2>Календарь активности</h2><span class="muted small">последние 18 недель</span></div>' + heatmap(allByDay, goal) + '</section>';
   }
 
   function kpi(label, value, sub, cls) {
     return '<div class="kpi card"><span class="kpi-label">' + label + '</span><span class="kpi-value">' + value + '</span><span class="kpi-sub ' + (cls || '') + '">' + U.esc(sub || '') + '</span></div>';
   }
 
-  function breakdown(rows, total, showCat) {
+  function breakdown(rows, total, showCat, kind) {
     if (!rows.length) return '<p class="empty">За этот период пока пусто.</p>';
     const max = rows[0].sec;
     return '<ul class="breakdown">' + rows.map((r) =>
-      '<li><div class="bd-top"><span><i style="background:' + r.color + '"></i>' + U.esc(r.name) +
+      '<li class="bd-row" data-st="filter" data-v="' + kind + ':' + U.esc(r.id) + '" title="Показать только это"><div class="bd-top"><span><i style="background:' + r.color + '"></i>' + U.esc(r.name) +
       (showCat ? ' <small class="muted">' + U.esc(r.cat) + '</small>' : '') + '</span>' +
       '<b>' + U.human(r.sec) + ' <small class="muted">' + Math.round(r.sec / (total || 1) * 100) + '%</small></b></div>' +
       '<div class="bd-bar"><span style="width:' + (r.sec / max * 100) + '%;background:' + r.color + '"></span></div></li>'
@@ -153,11 +187,22 @@
     if (!root || !root.contains(e.target)) return;
     const b = e.target.closest('[data-st]');
     if (!b) return;
+    if (b.dataset.st === 'filter-select') return;
+    if (b.dataset.st === 'filter') { filter = filter === b.dataset.v ? 'all' : b.dataset.v; window.scrollTo(0, 0); }
     if (b.dataset.st === 'period') { period = b.dataset.p; offset = 0; }
     if (b.dataset.st === 'prev') offset--;
     if (b.dataset.st === 'next' && offset < 0) offset++;
     App.render();
   });
+
+  document.addEventListener('change', (e) => {
+    if (!root || !root.contains(e.target) || e.target.dataset.st !== 'filter-select') return;
+    filter = e.target.value;
+    App.render();
+  });
+
+  // Открыть статистику сразу по нужной задаче (из раздела «Сегодня»)
+  App.showStatsFor = function (f) { filter = f; period = 'week'; offset = 0; location.hash = '#/stats'; };
 
   let ticks = 0;
   App.views.stats = {

@@ -35,6 +35,15 @@
     st.sessions.forEach((s) => { totalPerTask[s.taskId] = (totalPerTask[s.taskId] || 0) + s.sec; });
     const active = st.active;
     const usedCats = st.categories.filter((c) => st.tasks.some((t) => !t.archived && t.categoryId === c.id));
+    // Последняя запись по каждой задаче — для блока «Продолжить»
+    const last = {};
+    st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId].start) last[x.taskId] = x; });
+    // В открытой категории сначала показываем задачи, которыми занималась недавно
+    if (filter !== 'all') tasks.sort((a, b) => (last[b.id] ? last[b.id].start : 0) - (last[a.id] ? last[a.id].start : 0));
+    const recent = st.tasks
+      .filter((t) => !t.archived && last[t.id] && (filter === 'all' || t.categoryId === filter) && !(active && active.taskId === t.id) && Date.now() - last[t.id].start < 21 * 86400000)
+      .sort((a, b) => last[b.id].start - last[a.id].start)
+      .slice(0, 3);
 
     el.innerHTML =
       '<header class="page-head"><div><h1>' + greeting() + '!</h1><p class="muted">' + U.weekday(Date.now()) + ', ' + U.dateLabel(Date.now()) + '</p></div></header>' +
@@ -58,6 +67,14 @@
           '<button class="chip' + (filter === 'all' ? ' on' : '') + '" data-act="filter" data-id="all">Все</button>' +
           usedCats.map((c) => '<button class="chip' + (filter === c.id ? ' on' : '') + '" data-act="filter" data-id="' + c.id + '"><i style="background:' + c.color + '"></i>' + U.esc(c.name) + '</button>').join('') +
         '</div>' : '') +
+        (recent.length ? '<div class="continue"><div class="continue-head">' + I('play') + ' Продолжить' + (filter !== 'all' ? ' в «' + U.esc(Store.category(filter).name) + '»' : '') + '</div><div class="continue-list">' +
+          recent.map((t) => {
+            const c = Store.category(t.categoryId);
+            const l = last[t.id];
+            return '<button class="continue-item" data-act="start" data-id="' + t.id + '" style="--c:' + c.color + '">' +
+              '<span class="ci-play">' + I('play') + '</span><span class="ci-text"><b>' + U.esc(t.name) + '</b>' +
+              '<small>' + whenLabel(l.start) + ' · ' + U.human(l.sec) + '</small></span></button>';
+          }).join('') + '</div></div>' : '') +
         '<ul class="task-list">' + (tasks.length ? tasks.map((t) => {
           const c = Store.category(t.categoryId);
           const running = active && active.taskId === t.id;
@@ -85,6 +102,14 @@
         historyList(todayList) +
       '</section>' +
       '<p class="hint muted small">Горячие клавиши: <kbd>Пробел</kbd> — старт/стоп последней задачи, <kbd>M</kbd> — звук, <kbd>1</kbd>–<kbd>7</kbd> — разделы.</p>';
+  }
+
+  // «сегодня в 14:20», «вчера», «3 дня назад»
+  function whenLabel(ts) {
+    const days = Math.round((U.startOfDay(Date.now()) - U.startOfDay(ts)) / 86400000);
+    if (days <= 0) return 'сегодня в ' + U.timeLabel(ts);
+    if (days === 1) return 'вчера';
+    return days + ' ' + U.plural(days, ['день', 'дня', 'дней']) + ' назад';
   }
 
   function todayCard(todayList) {
@@ -189,9 +214,10 @@
         '<label>Название<input name="name" required maxlength="80" value="' + U.esc(t.name) + '"></label>' +
         '<label>Категория<select name="categoryId">' + catOptions(t.categoryId) + '</select></label>' +
         '<label>Цель на день, мин (необязательно)<input name="goalMin" type="number" min="0" max="1440" value="' + U.esc(t.goalMin || '') + '" placeholder="например, 20"></label>',
-      extra: isNew ? '' : '<button type="button" class="btn ghost" data-x="archive">В архив</button><button type="button" class="btn ghost danger-text" data-x="delete">Удалить</button>',
+      extra: isNew ? '' : '<button type="button" class="btn ghost" data-x="stats">' + I('chart') + ' Статистика</button><button type="button" class="btn ghost" data-x="archive">В архив</button><button type="button" class="btn ghost danger-text" data-x="delete">Удалить</button>',
       onOpen(form, close) {
         form.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', async () => {
+          if (b.dataset.x === 'stats') { close(); App.showStatsFor('task:' + t.id); return; }
           if (b.dataset.x === 'archive') {
             t.archived = true;
             if (S().active && S().active.taskId === t.id) Timer.stop();
