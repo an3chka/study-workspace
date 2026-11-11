@@ -906,3 +906,10 @@ h2.h-ic .ic { width: 20px; height: 20px; }
 .ask-msg.assistant { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
 .ask-form { display: flex; gap: 8px; align-items: flex-end; }
 .ask-form textarea { flex: 1; }
+.dontknow { align-self: flex-start; color: var(--muted); }
+.feedback.skip { background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.feedback.skip .fb-head .ic { color: var(--accent); }
+.auto-timer { display: flex; align-items: center; gap: 6px; margin-top: -6px; }
+.auto-timer .ic { width: 14px; height: 14px; color: var(--accent); }
+.auto-timer .link-btn { margin: 0; font-size: .85rem; }
+.ask-btns { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }

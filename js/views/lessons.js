@@ -106,7 +106,31 @@
     openGame();
   }
 
+  // Автотаймер: время урока само записывается в задачу по языку
+  function langTask() {
+    const st = S();
+    const last = {};
+    st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId]) last[x.taskId] = x.start; });
+    const langTasks = st.tasks.filter((t) => !t.archived && t.categoryId === 'lang').sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0));
+    if (langTasks[0]) return langTasks[0];
+    const t = { id: U.uid(), name: langName(), categoryId: 'lang', createdAt: Date.now(), goalMin: 0 };
+    st.tasks.push(t);
+    return t;
+  }
+  function autoTimerStart() {
+    if (S().settings.autoTimer === false || S().active) return;
+    const t = langTask();
+    S().settings.lastTask = t.id;
+    Timer.start(t.id, 'watch');
+    game.autoTaskId = t.id;
+  }
+  function autoTimerStop() {
+    if (game && game.autoTaskId && S().active && S().active.taskId === game.autoTaskId) Timer.stop(true);
+    if (game) game.autoTaskId = null;
+  }
+
   function openGame() {
+    autoTimerStart();
     if (location.hash.startsWith('#/lessons')) App.render(); else location.hash = '#/lessons';
     window.scrollTo(0, 0);
   }
@@ -149,7 +173,7 @@
       game.answered.gain = gain;
     } else {
       game.combo = 0;
-      if (game.kind !== 'placement') game.hearts--;
+      if (game.kind !== 'placement' && !(extra && extra.unknown)) game.hearts--;
       game.mistakes.push({ q: e.question || e.sentence || e.translation || e.ru, right: rightText(e), mine: e.type === 'choice' && e.options[Number(mine)] != null ? e.options[Number(mine)] : String(mine || ''), explain: e.explain || '', topic: e.topic || game.topicId || '' });
     }
     App.render();
@@ -171,6 +195,7 @@
   }
 
   function finish() {
+    autoTimerStop();
     const prof = P();
     const total = game.lesson.exercises.length;
     const done = Math.min(total, game.i);
@@ -307,7 +332,8 @@
       '<div class="progress game-progress"><span style="width:' + (Math.max(0, game.i) / total * 100) + '%"></span></div>' +
       (game.kind === 'placement' ? '<span class="muted small">' + (game.i + 1) + '/' + total + '</span>' :
         '<span class="hearts" aria-label="Жизни: ' + game.hearts + '">' + [0, 1, 2].map((k) => '<span class="heart' + (k < game.hearts ? ' on' : '') + '">' + I('heart') + '</span>').join('') + '</span>' +
-        '<span class="xp-pill">' + game.xp + ' XP</span>') + '</div>';
+        '<span class="xp-pill">' + game.xp + ' XP</span>') + '</div>' +
+      (game.autoTaskId && S().active && S().active.taskId === game.autoTaskId ? '<div class="auto-timer muted small">' + I('timer') + ' время идёт в «' + U.esc((Store.task(game.autoTaskId) || {}).name || '') + '» <button class="link-btn" data-l="auto-off">выключить</button></div>' : '');
 
     if (game.i < 0) {
       el.innerHTML = '<div class="game">' + top + '<div class="card game-card"><h2>' + U.esc(L.title) + '</h2><p class="lesson-intro">' + U.esc(L.intro).replace(/\n/g, '<br>') + '</p>' +
@@ -343,7 +369,7 @@
     let fb = '';
     if (a) {
       const right = rightText(e);
-      fb = '<div class="feedback ' + (a.correct ? 'ok' : 'bad') + '"><div class="fb-head">' + (a.correct ? I('check-circle') + ' Верно!' + (a.gain ? ' <span class="xp-pill">+' + a.gain + ' XP</span>' : '') + (game.combo >= 3 ? ' <span class="tag new">серия ' + game.combo + '</span>' : '') : I('alert') + ' Не совсем') + '</div>' +
+      fb = '<div class="feedback ' + (a.correct ? 'ok' : a.unknown ? 'skip' : 'bad') + '"><div class="fb-head">' + (a.correct ? I('check-circle') + ' Верно!' + (a.gain ? ' <span class="xp-pill">+' + a.gain + ' XP</span>' : '') + (game.combo >= 3 ? ' <span class="tag new">серия ' + game.combo + '</span>' : '') : a.unknown ? I('book') + ' Ничего страшного — разберём' : I('alert') + ' Не совсем') + '</div>' +
         (!a.correct || e.type !== 'choice' ? '<p>Правильно: <b>' + U.esc(right) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
         (a.better && !a.correct ? '<p>Твой вариант, исправленный: <i>' + U.esc(a.better) + '</i></p>' : '') +
         (a.feedback ? '<p>' + U.esc(a.feedback) + '</p>' : '') +
@@ -353,7 +379,8 @@
         '<button class="btn ghost small" data-l="ask-open">' + I('sparkles') + ' Спросить про это задание</button></div>' +
         '<div id="ex-ask"></div></div>';
     }
-    el.innerHTML = '<div class="game">' + top + '<div class="card game-card">' + body + '</div>' + fb + '</div>';
+    const skip = !a ? '<button class="btn ghost small dontknow" data-l="dontknow">' + I('alert') + ' Не знаю — покажи ответ</button>' : '';
+    el.innerHTML = '<div class="game">' + top + '<div class="card game-card">' + body + skip + '</div>' + fb + '</div>';
     const inp = el.querySelector('#gap-form input:not([disabled]), #tr-form textarea:not([disabled])');
     if (inp) inp.focus();
     const nb = el.querySelector('#next-btn');
@@ -407,8 +434,8 @@
     return '<section class="card ask-box" data-ask="' + id + '"><h2 class="h-ic">' + I('sparkles') + ' ' + U.esc(title) + '</h2>' +
       '<div class="ask-log">' + h.map((m) => '<div class="ask-msg ' + m.role + '">' + (m.role === 'user' ? U.esc(m.text) : App.md(m.text)) + '</div>').join('') + '</div>' +
       '<form class="ask-form"><textarea name="q" rows="2" maxlength="600" placeholder="' + U.esc(placeholder || 'Задай вопрос') + '"></textarea>' +
-      '<button class="btn primary">Спросить</button></form>' +
-      '<p class="muted small">1 вопрос = 1 запрос к нейросети.</p></section>';
+      '<div class="ask-btns"><button class="btn primary">Спросить</button><button type="button" class="btn ghost small" data-ask-copy>' + I('note') + ' Скопировать запрос</button></div></form>' +
+      '<p class="muted small">1 вопрос = 1 запрос к нейросети. Закончился лимит? «Скопировать запрос» — и вставь в любую другую нейросеть.</p></section>';
   };
   App.bindAskBox = function (el, id, contextFn) {
     const box = el.querySelector('[data-ask="' + id + '"]');
@@ -416,11 +443,20 @@
     const form = box.querySelector('form');
     const ta = form.querySelector('textarea');
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+    // Полный текст запроса — чтобы вставить в любую другую нейросеть
+    const fullPrompt = (q) => 'Я учу английский. Объясни, пожалуйста, по-русски и коротко, с 1–2 примерами.\n\n' + contextFn() +
+      ((askHistory[id] || []).length ? '\n\nНаш разговор до этого:\n' + askHistory[id].map((m) => (m.role === 'user' ? 'Я: ' : 'Ответ: ') + m.text).join('\n') : '') +
+      '\n\nМой вопрос: ' + (q || '…');
+    const copy = async (q) => {
+      try { await navigator.clipboard.writeText(fullPrompt(q)); U.toast('Запрос скопирован — вставь его в любую нейросеть'); }
+      catch (err) { window.prompt('Скопируй текст запроса:', fullPrompt(q)); }
+    };
+    box.querySelector('[data-ask-copy]').addEventListener('click', () => copy(ta.value.trim()));
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const q = ta.value.trim();
       if (!q) return;
-      if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); return; }
+      if (!AI.ready() && !AI._mock) { copy(q); return; }
       const h = askHistory[id] = askHistory[id] || [];
       const log = box.querySelector('.ask-log');
       log.insertAdjacentHTML('beforeend', '<div class="ask-msg user">' + U.esc(q) + '</div>');
@@ -431,7 +467,11 @@
           'приводи 1–2 примера на английском с переводом. Можно выделять важное **жирным**. Если вопрос не про язык, мягко верни к теме.\n\nКонтекст:\n' + contextFn(),
         prompt: h.concat([{ role: 'user', text: q }]),
       }));
-      if (!answer) return;
+      if (!answer) {
+        log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">Не получилось получить ответ. Нажми «Скопировать запрос» и вставь его в другую нейросеть.</div>');
+        ta.value = q;
+        return;
+      }
       h.push({ role: 'user', text: q }, { role: 'assistant', text: answer });
       if (h.length > 12) h.splice(0, h.length - 12);
       log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">' + App.md(answer) + '</div>');
@@ -477,9 +517,11 @@
       case 'again': game = null; App.render(); startLesson(root.querySelector('[data-l=start]'), { focus }); break;
       case 'home': game = null; App.render(); break;
       case 'quit':
-        if (game.done || game.i <= 0 || await App.confirm('Выйти из урока? Прогресс этого урока не сохранится.', 'Выйти')) { game = null; App.render(); }
+        if (game.done || game.i <= 0 || await App.confirm('Выйти из урока? Прогресс этого урока не сохранится, а записанное время останется.', 'Выйти')) { autoTimerStop(); game = null; App.render(); }
         break;
       case 'next': next(); break;
+      case 'auto-off': autoTimerStop(); App.render(); break;
+      case 'dontknow': if (!game.answered) answer(false, '', { unknown: true }); break;
       case 'choose': if (!game.answered) answer(Number(b.dataset.k) === ex.answer, b.dataset.k); break;
       case 'pick': game.picked = (game.picked || []).concat({ k: Number(b.dataset.k), text: ex.words[Number(b.dataset.k)] }); App.render(); break;
       case 'unpick': game.picked.splice(Number(b.dataset.k), 1); App.render(); break;

@@ -30,6 +30,7 @@
         '<label>Сигнал в конце помидора<span class="inline-row"><select name="chimeSound">' +
           Sound.chimes.map(([v, n]) => '<option value="' + v + '"' + (st.chimeSound === v ? ' selected' : '') + '>' + n + '</option>').join('') +
         '</select><button type="button" class="btn" data-s="test-chime">' + I('play') + ' Прослушать</button></span></label>' +
+        '<label class="check"><input type="checkbox" name="autoTimer"' + (st.autoTimer !== false ? ' checked' : '') + '> Автотаймер: время уроков, тестов и тренировок записывается само</label>' +
         '<label class="check"><input type="checkbox" name="autoTranslate"' + (st.autoTranslate ? ' checked' : '') + '> Автоперевод слов в «Чтении» (бесплатный сервис MyMemory, ему отправляется только слово)</label>' +
         '<label>Новых карточек в день (на колоду)<input type="number" name="newCardsPerDay" min="1" max="200" value="' + st.newCardsPerDay + '"></label>' +
         '<label>Тема<select name="theme">' +
