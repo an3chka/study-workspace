@@ -74,7 +74,7 @@
         st.categories.map((c) => {
           const list = tasks.filter((t) => t.categoryId === c.id);
           return list.length ? '<optgroup label="' + U.esc(c.name) + '">' + list.map((t) => '<option value="' + t.id + '"' + (t.id === sel ? ' selected' : '') + '>' + U.esc(t.name) + '</option>').join('') + '</optgroup>' : '';
-        }).join('') + '</select>' : '<span class="muted small">Добавь задачу на странице «Сегодня», чтобы засекать время</span>') +
+        }).join('') + '</select>' : '<span class="muted small tb-empty">Добавь задачу, чтобы засекать время</span>') +
       '<div class="seg tb-mode" role="group" aria-label="Режим"><button class="' + (mode === 'watch' ? 'on' : '') + '" data-tb="mode" data-v="watch" title="Секундомер">' + I('timer') + '</button>' +
       '<button class="' + (mode === 'pomo' ? 'on' : '') + '" data-tb="mode" data-v="pomo" title="Pomodoro ' + st.settings.pomoWork + '/' + st.settings.pomoBreak + '">' + I('clock') + ' ' + st.settings.pomoWork + '</button></div>' +
       (tasks.length ? '<button class="btn small primary" data-tb="start">' + I('play') + ' Старт</button>' : '<a class="btn small" href="#/">+ Задача</a>');

@@ -86,7 +86,6 @@
   function aiSection() {
     const c = AI.cfg();
     const p = AI.PROVIDERS[c.provider];
-    const used = Store.state.aiUsage && Store.state.aiUsage.day === U.dayKey(Date.now()) ? Store.state.aiUsage.n : 0;
     return '<section class="card ai-card"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Нейросеть</h2>' +
       '<span class="tag ' + (AI.ready() ? 'ok' : '') + '">' + (AI.ready() ? 'подключена' : 'не подключена') + '</span></div>' +
       '<p class="muted small">Нужна для уроков английского, объяснения слов в контексте и генерации карточек. Бесплатно: возьми ключ у одного из сервисов и вставь сюда. ' +
@@ -109,7 +108,7 @@
         '</select><button type="button" class="btn" data-s="ai-models">Загрузить список</button></span></label>' +
         '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
         (c.provider === 'gemini' || AI.pool('gemini').length ? '<button type="button" class="btn" data-s="ai-diag">' + I('search') + ' Диагностика Gemini</button>' : '') +
-        (used ? '<span class="muted small">запросов сегодня: ' + used + '</span>' : '') + '</div>' +
+        '</div>' + usageHTML() +
         (c.lastTest ? '<div class="ai-status ' + (c.lastTest.ok ? 'ok' : 'bad') + '">' + I(c.lastTest.ok ? 'check-circle' : 'alert') +
           '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' + (c.lastTest.via ? '. Ответил запасной ' + U.esc(c.lastTest.via) + '.<br><b>Почему не ответил ' + U.esc(AI.PROVIDERS[c.provider].name.split(' ')[0]) + ':</b> ' + U.esc(c.lastTest.why || 'неизвестно') : '') : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
           ' <small class="muted">(' + U.timeLabel(c.lastTest.ts) + ')</small></span></div>' : '') +
@@ -125,6 +124,22 @@
       '<textarea name="backupKey" rows="' + Math.min(4, Math.max(1, AI.pool(other).length)) + '" class="secret" autocomplete="off" spellcheck="false" placeholder="' + (other === 'openrouter' ? 'sk-or-v1-… (можно несколько, каждый с новой строки)' : 'AIza… или AQ.…') + '">' + U.esc(AI.pool(other).join('\n')) + '</textarea></label>' +
       '<p class="muted small">Если ' + AI.PROVIDERS[c.provider].name.split(' ')[0] + ' не ответит (нет VPN, лимит), кабинет сам спросит ' + AI.PROVIDERS[other].name.split(' ')[0] + '.' +
       (other === 'openrouter' ? ' Ключ: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/settings/keys</a> → «New key».' : '') + '</p></div>';
+  }
+
+  // Сколько запросов сегодня ушло в каждый сервис (лимиты примерные)
+  function usageHTML() {
+    const u = Store.state.aiUsage;
+    if (!u || u.day !== U.dayKey(Date.now()) || !u.n) return '<p class="muted small">Сегодня запросов к нейросети ещё не было.</p>';
+    const LIM = { openrouter: 50, gemini: 20 };
+    const by = u.by || {};
+    const rows = Object.keys(by).map((p) => {
+      const n = by[p];
+      const lim = LIM[p] ? LIM[p] * Math.max(1, AI.pool(p).length) : 0;
+      return '<div class="usage-row"><span>' + U.esc(AI.PROVIDERS[p] ? AI.PROVIDERS[p].name.split(' ')[0] : p) + '</span>' +
+        (lim ? '<div class="progress"><span style="width:' + Math.min(100, n / lim * 100) + '%"></span></div><span class="muted small">' + n + ' из ~' + lim + '</span>' : '<span class="muted small">' + n + '</span>') + '</div>';
+    }).join('');
+    return '<div class="usage"><b class="small">Запросов сегодня: ' + u.n + '</b>' + rows +
+      '<p class="muted small">Лимиты примерные: у бесплатного OpenRouter около 50 в день на аккаунт, у Gemini — от 20 и больше, точные цифры сервисы меняют. Урок ≈ 2–4 запроса, вопрос — 1. Обнуляется каждый день.</p></div>';
   }
 
   function download(name, text) {

@@ -70,8 +70,11 @@
   function countUse() {
     const st = Store.state;
     const today = U.dayKey(Date.now());
-    if (!st.aiUsage || st.aiUsage.day !== today) st.aiUsage = { day: today, n: 0 };
+    if (!st.aiUsage || st.aiUsage.day !== today) st.aiUsage = { day: today, n: 0, by: {} };
     st.aiUsage.n++;
+    st.aiUsage.by = st.aiUsage.by || {};
+    const p = cfg().provider;
+    st.aiUsage.by[p] = (st.aiUsage.by[p] || 0) + 1;
     Store.saveSoon();
   }
 

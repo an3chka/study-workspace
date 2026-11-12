@@ -1045,3 +1045,6 @@ a.quest[href]:hover { border-color: var(--accent); }
 .cal-done .ic { width: 12px; height: 12px; }
 .cal-done.all { color: var(--good); }
 .cal-toggle { margin-left: auto; }
+.usage { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.usage-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; font-size: .9rem; }
+.usage p { margin: 0; }
