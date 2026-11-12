@@ -296,6 +296,13 @@
   });
 
   let ticks = 0;
+  // Открыть план конкретного дня (из календаря)
+  App.openPlanDay = function (key) {
+    dayOffset = Math.round((new Date(key + 'T12:00:00').getTime() - U.startOfDay(Date.now()) - 12 * 3600000) / 86400000);
+    location.hash = '#/plan';
+    App.render();
+  };
+
   App.views.plan = {
     render,
     leave() { root = null; },
