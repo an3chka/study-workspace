@@ -32,7 +32,7 @@
     }
     if (/api key not valid|invalid api key|api_key_invalid|unauthorized|no auth|user not found/.test(t) || status === 401) return 'Ключ не подошёл. Проверь, что он скопирован целиком и выбран нужный сервис.' + detail(text);
     if (status === 403) return 'Доступ запрещён. Для Gemini обычно это значит: нет VPN или в Google Cloud выключен доступ к API для этого ключа.' + detail(text);
-    if (status === 429 || /quota|rate limit|resource_exhausted/.test(t)) return 'Лимит бесплатных запросов исчерпан. Попробуй позже или выбери другую модель.';
+    if (status === 429 || /quota|rate limit|resource_exhausted/.test(t)) return 'Лимит бесплатных запросов исчерпан. Попробуй позже или выбери другую модель.' + detail(text);
     if (status === 404) return 'Модель не найдена. Выбери другую в Настройках → «Нейросеть».';
     if (status >= 500) return 'Сервис нейросети сейчас перегружен. Попробуй через минуту.';
     return 'Ошибка нейросети (' + status + ').' + detail(text);
@@ -116,14 +116,15 @@
       if (AI._mock) { countUse(); const r = await AI._mock(o); return o.json ? (typeof r === 'string' ? parseJSON(r) : r) : r; }
       const c = cfg();
       AI.lastProvider = c.provider;
+      if (c.provider === 'custom') return AI.askOne(o);
       try {
-        return await AI.askOne(o);
+        return await tryKeys(c.provider, o);
       } catch (err) {
         const backup = AI.backupProvider();
         if (!backup) throw err;
         AI.status = 'переключаюсь на ' + PROVIDERS[backup].name.split(' ')[0] + '…';
         try {
-          const r = await withProvider(backup, () => AI.askOne(o));
+          const r = await tryKeys(backup, o);
           AI.lastProvider = backup;
           if (!AI._warned) { AI._warned = true; U.toast(PROVIDERS[c.provider].name.split(' ')[0] + ' не ответил — ответ дал запасной ' + PROVIDERS[backup].name.split(' ')[0] + '.'); }
           return r;
@@ -133,11 +134,13 @@
       }
     },
 
+    // Все ключи сервиса (можно несколько — по одному в строке)
+    pool(p) { return poolOf(p); },
+
     // Запасной сервис — тот, у которого сохранён ключ (кроме текущего)
     backupProvider() {
       const c = cfg();
-      const keys = c.keys || {};
-      return ['openrouter', 'gemini'].find((p) => p !== c.provider && keys[p] && String(keys[p]).trim()) || '';
+      return ['openrouter', 'gemini'].find((p) => p !== c.provider && poolOf(p).length) || '';
     },
 
     async askOne(o) {
@@ -218,8 +221,8 @@
           } catch (e) {
             lastErr = e;
             if (c.provider === 'openrouter' && !c.model && c.autoModel === model) { c.autoModel = ''; }
-            // неверный ключ — нет смысла пробовать другие модели
-            if (/Ключ не подошёл|Нет связи/.test(e.message)) break;
+            // неверный ключ или дневной лимит аккаунта — другие модели не помогут
+            if (/Ключ не подошёл|Нет связи|per-day|per day|daily/i.test(e.message)) break;
           }
         }
         AI.status = '';
@@ -281,16 +284,54 @@
     return c.endpoint === 'vertex' ? [vertex, studio] : [studio, vertex];
   }
 
-  // Временно выполнить запрос от имени другого сервиса (своя модель, свой ключ)
-  async function withProvider(p, fn) {
+  function poolOf(p) {
+    const c = cfg();
+    let list = (c.pools && c.pools[p]) || [];
+    if (!list.length && c.keys && c.keys[p]) list = [c.keys[p]];
+    if (!list.length && p === c.provider && c.key) list = [c.key];
+    return list.map((k) => String(k).trim()).filter(Boolean);
+  }
+
+  // Ошибки, при которых стоит попробовать другой ключ того же сервиса
+  const KEY_ERR = /Лимит|Ключ не подошёл|Доступ запрещён|credits|402|недостаточно/i;
+
+  // Перебираем ключи сервиса, начиная с последнего удачного
+  async function tryKeys(p, o) {
+    const c = cfg();
+    const keys = poolOf(p);
+    if (!keys.length) throw new Error('Нет ключа для ' + PROVIDERS[p].name);
+    c.keyIdx = c.keyIdx || {};
+    const start = Math.min(c.keyIdx[p] || 0, keys.length - 1);
+    let lastErr = null;
+    for (let i = 0; i < keys.length; i++) {
+      const idx = (start + i) % keys.length;
+      if (keys.length > 1) AI.status = 'ключ ' + (idx + 1) + ' из ' + keys.length + '…';
+      try {
+        const r = await withProvider(p, keys[idx], () => AI.askOne(o));
+        if (c.keyIdx[p] !== idx) { c.keyIdx[p] = idx; Store.saveSoon(); }
+        return r;
+      } catch (e) {
+        lastErr = e;
+        if (!KEY_ERR.test(e.message)) throw e; // сеть, модель и т.п. — другой ключ не поможет
+      }
+    }
+    throw new Error(lastErr.message + (keys.length > 1 ? ' (все ' + keys.length + ' ключа исчерпаны)' : ''));
+  }
+
+  // Временно выполнить запрос от имени сервиса p с ключом key (своя модель у каждого сервиса)
+  async function withProvider(p, key, fn) {
     const c = cfg();
     c.autoBy = c.autoBy || {};
     c.autoBy[c.provider] = c.autoModel || '';
     const saved = { provider: c.provider, key: c.key, model: c.model, autoModel: c.autoModel, endpoint: c.endpoint };
-    c.provider = p; c.key = (c.keys || {})[p] || ''; c.model = ''; c.autoModel = c.autoBy[p] || ''; c.endpoint = '';
+    const same = p === c.provider;
+    c.provider = p; c.key = key;
+    if (!same) { c.model = ''; c.autoModel = c.autoBy[p] || ''; c.endpoint = ''; }
     try { return await fn(); } finally {
-      c.autoBy[p] = c.autoModel || '';
+      const auto = c.autoModel, ep = c.endpoint;
+      c.autoBy[p] = auto || '';
       Object.assign(c, saved);
+      if (same) { c.autoModel = auto; c.endpoint = ep; }
       Store.saveSoon();
     }
   }

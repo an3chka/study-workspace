@@ -108,7 +108,7 @@
     exportJSON() {
       // Ключ нейросети в файл не попадает — файлом могут поделиться.
       const copy = JSON.parse(JSON.stringify(state));
-      if (copy.settings && copy.settings.ai) copy.settings.ai.key = '';
+      if (copy.settings && copy.settings.ai) { copy.settings.ai.key = ''; copy.settings.ai.keys = {}; copy.settings.ai.pools = {}; }
       return JSON.stringify(Object.assign({ exportedAt: new Date().toISOString() }, copy), null, 2);
     },
 
@@ -121,7 +121,9 @@
       // Не затираем свой ключ нейросети пустым из файла
       const myAi = state.settings && state.settings.ai;
       state = normalize(data);
-      if (myAi && myAi.key && (!state.settings.ai || !state.settings.ai.key)) state.settings.ai = Object.assign({}, state.settings.ai || {}, { key: myAi.key });
+      if (myAi && (myAi.key || myAi.pools) && (!state.settings.ai || !state.settings.ai.key)) {
+        state.settings.ai = Object.assign({}, state.settings.ai || {}, { key: myAi.key, keys: myAi.keys || {}, pools: myAi.pools || {} });
+      }
       Store.save();
     },
 

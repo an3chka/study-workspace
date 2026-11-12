@@ -98,8 +98,10 @@
         (p.keyUrl ? '<ol class="plain small ai-steps"><li>Открой <a href="' + p.keyUrl + '" target="_blank" rel="noopener noreferrer">' + p.keyUrl.replace('https://', '') + '</a> и войди (можно через Google).</li>' +
           '<li>Нажми «Create key» / «Создать ключ» и скопируй его.</li><li>Вставь ключ в поле ниже и нажми «Проверить».</li></ol>' : '') +
         (c.provider === 'custom' ? '<label>Адрес (OpenAI-совместимый)<input name="baseUrl" value="' + U.esc(c.baseUrl || '') + '" placeholder="http://localhost:11434/v1"></label>' : '') +
-        '<label>Ключ' + (c.provider === 'custom' ? ' (если нужен)' : '') + '<span class="inline-row"><input name="key" type="password" autocomplete="off" value="' + U.esc(c.key || '') + '" placeholder="вставь ключ сюда">' +
+        '<label>' + (c.provider === 'custom' ? 'Ключ (если нужен)' : 'Ключ — можно несколько, каждый с новой строки') + '<span class="inline-row">' +
+          '<textarea name="key" rows="' + Math.min(4, Math.max(1, AI.pool(c.provider).length)) + '" class="secret" autocomplete="off" spellcheck="false" placeholder="вставь ключ сюда">' + U.esc(AI.pool(c.provider).join('\n')) + '</textarea>' +
           '<button type="button" class="btn" data-s="ai-show">' + I('eye') + '</button></span></label>' +
+        (AI.pool(c.provider).length > 1 ? '<p class="muted small">Ключей: ' + AI.pool(c.provider).length + '. Если у одного закончится лимит, кабинет сам возьмёт следующий. Ключи с одного аккаунта делят общий лимит.</p>' : '') +
         backupHTML(c) +
         (AI.keyProblem() ? '<div class="ai-status bad">' + I('alert') + '<span>' + U.esc(AI.keyProblem()) + '</span></div>' : '') +
         '<label>Модель<span class="inline-row"><select name="model"><option value="">' + U.esc(AI.model()) + ' (по умолчанию)</option>' +
@@ -117,9 +119,8 @@
   function backupHTML(c) {
     if (c.provider === 'custom') return '';
     const other = c.provider === 'gemini' ? 'openrouter' : 'gemini';
-    const k = (c.keys || {})[other] || '';
     return '<div class="backup-key"><label>Запасной ключ ' + (other === 'openrouter' ? 'OpenRouter (работает без VPN)' : 'Gemini') + ' — необязательно' +
-      '<input name="backupKey" type="password" autocomplete="off" value="' + U.esc(k) + '" placeholder="' + (other === 'openrouter' ? 'sk-or-v1-…' : 'AIza… или AQ.…') + '"></label>' +
+      '<textarea name="backupKey" rows="' + Math.min(4, Math.max(1, AI.pool(other).length)) + '" class="secret" autocomplete="off" spellcheck="false" placeholder="' + (other === 'openrouter' ? 'sk-or-v1-… (можно несколько, каждый с новой строки)' : 'AIza… или AQ.…') + '">' + U.esc(AI.pool(other).join('\n')) + '</textarea></label>' +
       '<p class="muted small">Если ' + AI.PROVIDERS[c.provider].name.split(' ')[0] + ' не ответит (нет VPN, лимит), кабинет сам спросит ' + AI.PROVIDERS[other].name.split(' ')[0] + '.' +
       (other === 'openrouter' ? ' Ключ: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/settings/keys</a> → «New key».' : '') + '</p></div>';
   }
@@ -141,14 +142,16 @@
       const c = AI.cfg();
       c.lastTest = null;
       if (t.name === 'provider') { AI.setProvider(t.value); App.render(); return; }
-      if (t.name === 'backupKey') {
-        c.keys = c.keys || {};
-        c.keys[c.provider === 'gemini' ? 'openrouter' : 'gemini'] = t.value.trim();
+      if (t.name === 'key' || t.name === 'backupKey') {
+        const p = t.name === 'key' ? c.provider : (c.provider === 'gemini' ? 'openrouter' : 'gemini');
+        const list = Array.from(new Set(t.value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean)));
+        c.pools = c.pools || {}; c.keys = c.keys || {}; c.keyIdx = c.keyIdx || {};
+        c.pools[p] = list; c.keys[p] = list[0] || ''; c.keyIdx[p] = 0;
+        if (p === c.provider) { c.key = list[0] || ''; c.autoModel = ''; }
         Store.save(); App.render();
         return;
       }
       c[t.name] = t.value.trim();
-      if (t.name === 'key') { c.autoModel = ''; c.keys = c.keys || {}; c.keys[c.provider] = c.key; }
       Store.save();
       if (t.name === 'provider' || t.name === 'key') App.render();
       return;
@@ -198,8 +201,7 @@
     if (!b) return;
     const id = b.dataset.id;
     if (b.dataset.s === 'ai-show') {
-      const inp = root.querySelector('#ai-form [name=key]');
-      inp.type = inp.type === 'password' ? 'text' : 'password';
+      root.querySelectorAll('#ai-form textarea.secret').forEach((x) => x.classList.toggle('shown'));
     }
     if (b.dataset.s === 'ai-models') {
       const list = await AI.run(b, () => AI.listModels());
