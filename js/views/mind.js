@@ -82,6 +82,7 @@
   function render(el) {
     root = el;
     if (ex) return renderExercise(el);
+    setTimeout(bindSupport, 0);
     const today = U.dayKey(Date.now());
     const todays = S().mood.filter((m) => m.day === today).sort((a, b) => b.ts - a.ts);
     const pts = daily(30);
@@ -92,7 +93,10 @@
     const practicedToday = S().practice.filter((p) => U.dayKey(p.ts) === today).length;
 
     el.innerHTML =
-      '<header class="page-head"><div><h1>Самочувствие</h1><p class="muted">Замечай, как ты, — и бережно заботься о себе</p></div></header>' +
+      '<header class="page-head"><div><h1>Самочувствие</h1><p class="muted">Замечай, как ты, — и бережно заботься о себе</p></div>' +
+      '<button class="btn primary big" data-m="support">' + I('heart') + ' Мне нужна поддержка</button></header>' +
+      supportPanel() +
+      '<div class="grid-2">' + whyHTML() + questionHTML() + '</div>' +
 
       (lowStreak ? '<div class="card soft-alert">' + I('heart') + ' Последние дни были тяжёлыми. Попробуй упражнение ниже, сделай перерыв или поговори с кем-то близким. ' +
         'Если плохо долго — это нормальный повод обратиться к психологу. В экстренной ситуации звони <b>112</b>.</div>' : '') +
@@ -162,6 +166,102 @@
       '<span class="small">энергия ' + m.energy + ' · стресс ' + m.stress + (m.sleep ? ' · сон ' + U.human(m.sleep * 3600) : '') + (m.tags && m.tags.length ? ' · ' + U.esc(m.tags.join(', ')) : '') + '</span>' +
       (m.note ? '<span class="small mood-note">' + U.esc(m.note) + '</span>' : '') +
       '<button class="icon-btn small" data-m="del-mood" data-id="' + m.id + '" aria-label="Удалить отметку" title="Удалить отметку">' + I('x') + '</button></li>';
+  }
+
+  // ---------- «Зачем», вопрос дня, поддержка ----------
+
+  const QUESTIONS = [
+    'Что сегодня получилось — даже совсем маленькое?', 'За что ты можешь себя сегодня похвалить?', 'Что тебя сегодня порадовало?',
+    'Чего ты боишься прямо сейчас — и что реально может случиться в худшем случае?', 'Что из того, что тревожит, зависит от тебя? А что нет?',
+    'Какой один маленький шаг приблизит тебя к цели завтра?', 'Что бы ты сказала подруге в твоей ситуации?', 'Когда ты сегодня чувствовала себя спокойно?',
+    'Что даёт тебе энергию, а что забирает?', 'Чему ты научилась на этой неделе?', 'Какая мысль крутилась сегодня чаще всего? Насколько она правда?',
+    'За что ты благодарна своему телу сегодня?', 'Что ты откладываешь — и почему, если честно?', 'Какой была бы идеальная, но реалистичная завтрашняя суббота?',
+    'Кто тебя поддерживает? Когда ты в последний раз говорила ему спасибо?', 'Что ты сделала бы, если бы не боялась ошибиться?',
+    'Что сегодня было трудным — и как ты с этим справилась?', 'Какое твоё качество помогло тебе на этой неделе?', 'Что можно сделать немного проще?',
+    'Что ты хочешь запомнить из сегодняшнего дня?', 'Какую привычку ты хочешь сохранить? Какую — отпустить?', 'Как ты поймёшь, что неделя прошла хорошо?',
+    'Где ты слишком строга к себе?', 'Что ты сегодня сделала для своего будущего «я»?', 'Что бы ты сказала себе год назад?',
+    'Какая маленькая радость ждёт тебя завтра?', 'Чему ты сейчас учишься — и зачем это тебе лично?', 'Как ты хочешь отдохнуть на этой неделе?',
+  ];
+  let qShift = 0;
+
+  function todayQuestion() {
+    const key = U.dayKey(Date.now());
+    let seed = 0;
+    for (const ch of key) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    return QUESTIONS[(seed + qShift) % QUESTIONS.length];
+  }
+
+  function whyHTML() {
+    const why = S().why;
+    return '<section class="card why-card"><h2 class="h-ic">' + I('star') + ' Зачем я это делаю</h2>' +
+      (why.length ? '<ul class="why-list">' + why.map((w) => '<li>' + I('heart') + '<span>' + U.esc(w.text) + '</span><button class="icon-btn small" data-m="del-why" data-id="' + w.id + '" aria-label="Удалить">' + I('x') + '</button></li>').join('') + '</ul>' :
+        '<p class="muted small">Запиши, ради чего ты учишься и стараешься: мечты, цели, кем хочешь стать. В трудный день кабинет напомнит тебе об этом.</p>') +
+      '<form id="why-form" class="add-step"><input name="text" maxlength="200" placeholder="Например: хочу работать в ML и жить там, где мне нравится" aria-label="Моя причина"><button class="btn small">+</button></form>' +
+      '</section>';
+  }
+
+  function questionHTML() {
+    const key = U.dayKey(Date.now());
+    const done = S().reflections.filter((r) => r.day === key);
+    const q = todayQuestion();
+    return '<section class="card"><div class="card-head"><h2 class="h-ic">' + I('lightbulb') + ' Вопрос дня</h2>' +
+      '<button class="btn small ghost" data-m="q-next">Другой вопрос</button></div>' +
+      '<p class="q-day">' + U.esc(q) + '</p>' +
+      '<form id="refl-form" class="journal-form"><textarea name="a" rows="3" maxlength="1500" placeholder="Пиши как есть — это только для тебя"></textarea><button class="btn primary">Сохранить ответ</button></form>' +
+      (done.length ? '<div class="refl-done">' + done.map((r) => '<p class="small"><b>' + U.esc(r.q) + '</b><br>' + U.esc(r.a) + '</p>').join('') + '</div>' : '') +
+      (S().reflections.length > done.length ? '<details class="small"><summary class="muted">Прошлые ответы (' + (S().reflections.length - done.length) + ')</summary>' +
+        S().reflections.filter((r) => r.day !== key).slice().reverse().slice(0, 20).map((r) => '<p class="small"><span class="muted">' + U.dateLabel(r.ts) + '</span> · <b>' + U.esc(r.q) + '</b><br>' + U.esc(r.a) + '</p>').join('') + '</details>' : '') +
+      '</section>';
+  }
+
+  const CHEERS = [
+    'Ты уже сделала больше, чем тебе кажется. Посмотри на цифры ниже.', 'Тяжёлые дни — тоже часть пути. Они не отменяют того, что ты уже прошла.',
+    'Не нужно делать всё сразу. Нужен только следующий маленький шаг.', 'Ты не обязана быть продуктивной каждую минуту. Отдых — тоже работа на результат.',
+    'Ошибки — это данные, а не приговор. Ты учишься.', 'Сравнивай себя только с собой вчерашней.',
+  ];
+  let supportOpen = false;
+
+  function supportPanel() {
+    if (!supportOpen) return '';
+    const why = S().why;
+    const w = why.length ? why[Math.floor(Math.random() * why.length)].text : '';
+    const weekFrom = U.addDays(U.startOfDay(Date.now()), -6);
+    const weekSec = Stats.sum(Stats.inRange(weekFrom, U.addDays(U.startOfDay(Date.now()), 1)));
+    const lessons = S().lessons.history.filter((h) => h.ts >= weekFrom).length;
+    const L = App.playerLevel ? App.playerLevel() : null;
+    const cheer = CHEERS[Math.floor(Math.random() * CHEERS.length)];
+    return '<section class="card support">' +
+      '<div class="card-head"><h2 class="h-ic">' + I('heart') + ' Маленькая я</h2><button class="icon-btn" data-m="support-close" aria-label="Закрыть">' + I('x') + '</button></div>' +
+      '<p class="support-cheer">' + U.esc(cheer) + '</p>' +
+      (w ? '<div class="support-why">' + I('star') + '<span>Помнишь, зачем? <b>' + U.esc(w) + '</b></span></div>' : '<p class="muted small">Запиши своё «зачем» ниже — я буду напоминать.</p>') +
+      '<div class="support-facts"><span><b>' + U.human(weekSec) + '</b> за неделю</span><span><b>' + lessons + '</b> ' + U.plural(lessons, ['урок', 'урока', 'уроков']) + '</span>' +
+      (L ? '<span>уровень <b>' + L.lvl + '</b></span>' : '') + '<span>серия <b>' + Stats.streak().current + '</b></span></div>' +
+      '<div class="row-btns">' +
+        '<button class="btn" data-m="ex" data-id="calm">' + I('wind') + ' Подышать 1 минуту</button>' +
+        '<button class="btn" data-m="ex" data-id="thoughts">' + I('note') + ' Разгрузить мысли</button>' +
+        '<button class="btn" data-m="small-step">' + I('target') + ' Один маленький шаг</button>' +
+      '</div>' +
+      App.askBoxHTML('support-chat', 'Поговорить со мной', 'Напиши, что сейчас на душе…') +
+      '<p class="muted small">Если очень тяжело и долго — это повод обратиться к психологу. В опасной ситуации звони 112.</p>' +
+      '</section>';
+  }
+
+  function supportContext() {
+    const recent = S().mood.slice(-5).map((m) => 'настроение ' + m.mood + '/5, стресс ' + m.stress + '/5' + (m.note ? ' («' + m.note.slice(0, 80) + '»)' : '')).join('; ');
+    return 'Её «зачем»: ' + (S().why.map((w) => w.text).join('; ') || 'пока не записано') + '\n' +
+      'Последние отметки самочувствия: ' + (recent || 'нет') + '\n' +
+      'За неделю с таймером: ' + U.human(Stats.sum(Stats.inRange(U.addDays(U.startOfDay(Date.now()), -6), Date.now() + 1))) + ', серия дней: ' + Stats.streak().current;
+  }
+
+  function bindSupport() {
+    if (!supportOpen || !root) return;
+    App.bindAskBox(root, 'support-chat', supportContext, {
+      temperature: 0.7,
+      system: 'Ты — тёплая, поддерживающая «маленькая версия» студентки, которая с ней разговаривает. Говоришь по-русски, на «ты», коротко (до 100 слов), без пафоса и без советов «просто не переживай». ' +
+        'Сначала признаёшь чувства, потом напоминаешь её собственные причины («зачем») и предлагаешь один очень маленький конкретный шаг или упражнение (дыхание, прогулка, разгрузка мыслей). ' +
+        'Ты не психотерапевт и не ставишь диагнозов. Если звучат мысли о самоповреждении или ей очень плохо долго — мягко, но прямо советуешь обратиться к близким, к психологу, а в опасной ситуации звонить 112.',
+      copyIntro: 'Поддержи меня, пожалуйста. Ответь тепло, по-русски, коротко, напомни мои причины и предложи один маленький шаг.',
+    });
   }
 
   function scale(name, label, items) {
@@ -284,6 +384,22 @@
     switch (b.dataset.m) {
       case 'ex': ex = { def: EXERCISES.find((x) => x.id === b.dataset.id), step: 0, started: Date.now() }; App.render(); window.scrollTo(0, 0); break;
       case 'ex-close': stopEx(); ex = null; App.render(); break;
+      case 'support': supportOpen = true; App.render(); window.scrollTo(0, 0); break;
+      case 'support-close': supportOpen = false; App.render(); break;
+      case 'q-next': qShift++; App.render(); break;
+      case 'del-why': {
+        const w = S().why.find((x) => x.id === b.dataset.id);
+        if (!w) break;
+        S().why = S().why.filter((x) => x.id !== w.id); Store.save(); App.render();
+        U.toastUndo('Причина удалена', () => { S().why.push(w); Store.save(); App.render(); });
+        break;
+      }
+      case 'small-step': {
+        const steps = ['Открой нужный файл и напиши одно предложение', 'Повтори 5 карточек', 'Выпей воды и разложи вещи на столе', 'Поставь таймер на 10 минут и начни самое простое',
+          'Выйди на 5 минут на улицу', 'Напиши список из трёх дел на завтра', 'Ответь на одно сообщение, которое откладываешь'];
+        U.toast('Маленький шаг: ' + steps[Math.floor(Math.random() * steps.length)]);
+        break;
+      }
       case 'breath-start': startBreath(); break;
       case 'breath-stop': finishExercise((Date.now() - (ex.started || Date.now())) / 1000); break;
       case 'timed-start': startTimedStep(); break;
@@ -313,6 +429,23 @@
 
   document.addEventListener('submit', (e) => {
     if (!root || !root.contains(e.target)) return;
+    if (e.target.id === 'why-form') {
+      e.preventDefault();
+      const text = U.formData(e.target).text;
+      if (!text) return;
+      S().why.push({ id: U.uid(), text, ts: Date.now() });
+      Store.save(); App.render();
+      return;
+    }
+    if (e.target.id === 'refl-form') {
+      e.preventDefault();
+      const a = U.formData(e.target).a;
+      if (!a) return;
+      S().reflections.push({ id: U.uid(), ts: Date.now(), day: U.dayKey(Date.now()), q: todayQuestion(), a });
+      Store.save(); App.render();
+      U.toast('Ответ сохранён — он будет виден и в календаре');
+      return;
+    }
     if (e.target.id === 'mood-form') {
       e.preventDefault();
       const fd = new FormData(e.target);

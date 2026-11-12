@@ -486,14 +486,15 @@
       '<div class="ask-btns"><button class="btn primary">Спросить</button><button type="button" class="btn ghost small" data-ask-copy>' + I('note') + ' Скопировать запрос</button></div></form>' +
       '<p class="muted small">1 вопрос = 1 запрос к нейросети. Закончился лимит? «Скопировать запрос» — и вставь в любую другую нейросеть.</p></section>';
   };
-  App.bindAskBox = function (el, id, contextFn) {
+  App.bindAskBox = function (el, id, contextFn, opts) {
+    opts = opts || {};
     const box = el.querySelector('[data-ask="' + id + '"]');
     if (!box) return;
     const form = box.querySelector('form');
     const ta = form.querySelector('textarea');
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
     // Полный текст запроса — чтобы вставить в любую другую нейросеть
-    const fullPrompt = (q) => 'Я учу английский. Объясни, пожалуйста, по-русски и коротко, с 1–2 примерами.\n\n' + contextFn() +
+    const fullPrompt = (q) => (opts.copyIntro || 'Я учу английский. Объясни, пожалуйста, по-русски и коротко, с 1–2 примерами.') + '\n\n' + contextFn() +
       ((askHistory[id] || []).length ? '\n\nНаш разговор до этого:\n' + askHistory[id].map((m) => (m.role === 'user' ? 'Я: ' : 'Ответ: ') + m.text).join('\n') : '') +
       '\n\nМой вопрос: ' + (q || '…');
     const copy = async (q) => {
@@ -511,9 +512,9 @@
       log.insertAdjacentHTML('beforeend', '<div class="ask-msg user">' + U.esc(q) + '</div>');
       ta.value = '';
       const answer = await AI.run(form.querySelector('button'), () => AI.ask({
-        temperature: 0.4,
-        system: 'Ты — добрая преподавательница английского для русскоязычной студентки. Отвечай по-русски, понятно и коротко (до 120 слов), ' +
-          'приводи 1–2 примера на английском с переводом. Можно выделять важное **жирным**. Если вопрос не про язык, мягко верни к теме.\n\nКонтекст:\n' + contextFn(),
+        temperature: opts.temperature == null ? 0.4 : opts.temperature,
+        system: (opts.system || ('Ты — добрая преподавательница английского для русскоязычной студентки. Отвечай по-русски, понятно и коротко (до 120 слов), ' +
+          'приводи 1–2 примера на английском с переводом. Можно выделять важное **жирным**. Если вопрос не про язык, мягко верни к теме.')) + '\n\nКонтекст:\n' + contextFn(),
         prompt: h.concat([{ role: 'user', text: q }]),
       }));
       if (!answer) {

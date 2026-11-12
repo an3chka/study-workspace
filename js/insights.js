@@ -43,6 +43,10 @@
     const moodToday = S().mood.filter((m) => m.day === key);
     const last = moodToday[moodToday.length - 1];
     if (last && last.stress >= 4) out.push({ icon: 'wind', tone: 'warn', text: 'Стресс сегодня высокий. Попробуй «Спокойное дыхание» — 1 минута.', href: '#/mind' });
+    const why = S().why || [];
+    if (why.length && last && (last.stress >= 4 || last.mood <= 2)) {
+      out.unshift({ icon: 'heart', tone: 'info', text: 'Помнишь, зачем ты это делаешь? «' + why[Math.floor(Math.random() * why.length)].text + '». Ты справляешься.', href: '#/mind' });
+    }
     else if (!moodToday.length && hour >= 12) out.push({ icon: 'heart', tone: 'info', text: 'Как ты сегодня? Отметь самочувствие — это 10 секунд.', href: '#/mind' });
 
     const due = S().decks.reduce((n, d) => n + d.cards.filter((c) => (c.reps || c.lapses || c.seenAt) && c.due <= now).length, 0);

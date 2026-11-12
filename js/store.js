@@ -39,6 +39,8 @@
       mood: [],              // отметки самочувствия
       journal: [],           // записи: благодарности, разгрузка мыслей
       practice: [],          // выполненные упражнения
+      why: [],               // «зачем я это делаю»
+      reflections: [],       // ответы на вопрос дня
       lessons: { level: '', lang: 'en-US', history: [], mistakes: [], xp: 0 }, // уроки с нейросетью
       known: {},             // знакомые слова по языкам: {'en-US': ['the', ...]}
     };
@@ -53,7 +55,7 @@
     if (out.settings.chime === false) { out.settings.chimeSound = 'none'; }
     delete out.settings.chime;
     out.sound = Object.assign(defaults().sound, data.sound || {});
-    ['categories', 'tasks', 'sessions', 'decks', 'hobbies', 'texts', 'plan', 'mood', 'journal', 'practice'].forEach((k) => {
+    ['categories', 'tasks', 'sessions', 'decks', 'hobbies', 'texts', 'plan', 'mood', 'journal', 'practice', 'why', 'reflections'].forEach((k) => {
       if (!Array.isArray(out[k])) out[k] = base[k];
     });
     if (!out.known || typeof out.known !== 'object' || Array.isArray(out.known)) out.known = {};
