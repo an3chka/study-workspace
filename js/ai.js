@@ -150,6 +150,12 @@
 
     async askOne(o) {
       const c = cfg();
+      if (c.geminiPickV !== 2) {
+        c.geminiPickV = 2;
+        if (/preview|3\.\d-flash/.test(c.autoModel || '') && c.provider === 'gemini') c.autoModel = '';
+        if (c.autoBy && /preview|3\.\d-flash/.test(c.autoBy.gemini || '')) c.autoBy.gemini = '';
+        Store.saveSoon();
+      }
       if (!AI.ready()) throw new Error('Нейросеть не подключена. Открой Настройки → «Нейросеть».');
       const kp = AI.keyProblem();
       if (kp) throw new Error(kp);
@@ -173,9 +179,13 @@
             AI.status = 'пробую ' + model + (ep.kind === 'vertex' ? ' (Vertex)' : '') + '…';
             try {
               const simple = c.simpleMode && ep.kind === 'studio';
+              const th = thinkingOff(model);
+              const gc = Object.assign({}, body.generationConfig);
+              if (th.thinkingConfig) gc.thinkingConfig = th.thinkingConfig;
+              const payload = JSON.stringify(Object.assign({}, body, { generationConfig: gc }));
               data = await request(simple ? ep.url + '?key=' + encodeURIComponent(c.key) : ep.url,
-                simple ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) }
-                  : { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) },
+                simple ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload }
+                  : { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: payload },
                 o.json ? 90000 : 30000);
               if (c.endpoint !== ep.kind || (!c.model && c.autoModel !== model)) { c.endpoint = ep.kind; if (!c.model) c.autoModel = model; Store.saveSoon(); }
               break outer;
@@ -280,29 +290,38 @@
       };
       if (!key) return ['✗ Нет ключа Gemini'];
       lines.push('Ключ: ' + key.slice(0, 6) + '… (' + key.length + ' символов)');
-      let model = c.autoBy && c.autoBy.gemini || c.autoModel || '';
+      // Пробуем несколько моделей и запоминаем самую быструю
+      let names = [];
       await step('Список моделей', async () => {
         const data = await request('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } }, 20000);
-        const names = (data.models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => m.name.replace('models/', ''));
+        names = (data.models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => m.name.replace('models/', ''));
         const flash = names.filter((n) => /flash/.test(n) && !/(image|tts|audio|live|thinking)/.test(n));
-        if (!model) model = flash.find((n) => /flash-latest/.test(n)) || flash.find((n) => !/lite|preview|exp/.test(n)) || flash[0] || names[0] || 'gemini-flash-latest';
         return names.length + ' моделей, flash: ' + flash.slice(0, 6).join(', ');
       });
-      model = model || 'gemini-flash-latest';
+      const prefer = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite'];
+      const toTry = prefer.filter((m) => !names.length || names.includes(m)).slice(0, 3);
+      if (!toTry.length) toTry.push('gemini-flash-latest');
       const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Ответь одним словом: привет' }] }] });
       const reply = (data) => { const p = data.candidates && data.candidates[0] && data.candidates[0].content; const t = p && p.parts ? p.parts.map((x) => x.text || '').join('') : ''; if (!t) throw new Error('пустой ответ: ' + JSON.stringify(data).slice(0, 120)); return '«' + t.trim().slice(0, 40) + '»'; };
-      const okA = await step('Запрос к ' + model + ' (обычный, ждём до 90 с)', async () =>
-        reply(await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
-          { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body }, 90000)));
-      const okB = await step('Запрос к ' + model + ' (ключ в адресе, без доп. заголовков)', async () =>
-        reply(await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key),
-          { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body }, 90000)));
-      if (/^AQ\./.test(key)) {
-        await step('Запрос через Vertex AI', async () =>
-          reply(await request('https://aiplatform.googleapis.com/v1/publishers/google/models/' + encodeURIComponent(model) + ':generateContent',
-            { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body }, 60000)));
+      let best = null, bestTime = Infinity;
+      for (const m of toTry) {
+        const t0 = Date.now();
+        const ok = await step('Запрос к ' + m, async () =>
+          reply(await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent',
+            { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(Object.assign(JSON.parse(body), { generationConfig: thinkingOff(m) })) }, 60000)));
+        const dt = Date.now() - t0;
+        if (ok && dt < bestTime) { best = m; bestTime = dt; }
+        if (ok && dt < 5000) break; // нашли быструю — дальше не тратим лимит
       }
-      if (okA || okB) { c.autoBy = c.autoBy || {}; c.autoBy.gemini = model; if (c.provider === 'gemini') c.autoModel = model; if (okB && !okA) c.simpleMode = true; Store.save(); }
+      if (best) {
+        c.autoBy = c.autoBy || {}; c.autoBy.gemini = best; c.simpleMode = false;
+        if (c.provider === 'gemini') c.autoModel = best;
+        c.endpoint = 'studio';
+        Store.save();
+        lines.push('→ Выбрана самая быстрая: ' + best + ' (' + (bestTime / 1000).toFixed(1) + ' с). Теперь Gemini будет отвечать сам.');
+      } else {
+        lines.push('→ Ни одна модель не ответила. Пришли этот текст — разберёмся.');
+      }
       return lines;
     },
 
@@ -323,8 +342,13 @@
       const list = await AI.listModels();
       list.slice(0, 2).forEach((m) => out.push(m.id));
     } catch (e) { /* список недоступен — возьмём известные названия */ }
-    ['gemini-flash-latest', 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-lite-latest'].forEach((m) => out.push(m));
+    ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.0-flash'].forEach((m) => out.push(m));
     return Array.from(new Set(out)).slice(0, 6);
+  }
+
+  // Для flash-моделей просим не «размышлять» долго — так ответ приходит за секунды
+  function thinkingOff(model) {
+    return /2\.5-flash|flash-latest|flash-lite/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {};
   }
 
   function geminiEndpoints(model) {
@@ -407,11 +431,12 @@
   // Чем выше — тем лучше модель для наших задач (грубая эвристика для сортировки).
   function score(id) {
     let s = 0;
-    const v = /(\d+(?:\.\d+)?)/.exec(id.replace(/^.*?gemini-/, ''));
-    if (/gemini/.test(id) && v) s += Number(v[1]) * 10;
-    if (/flash/.test(id)) s += 5;
+    // Gemini: быстрые проверенные модели выше «самых новых» (новые часто долго «думают»)
+    if (id === 'gemini-flash-latest') s += 60;
+    if (id === 'gemini-2.5-flash') s += 50;
+    if (/gemini.*flash/.test(id)) s += 10;
     if (/lite/.test(id)) s -= 3;
-    if (/preview|exp/.test(id)) s -= 2;
+    if (/preview|exp/.test(id)) s -= 25;
     if (id === 'openrouter/free') s += 100;
     if (/gemma-4-31b|gemma-3-27b|llama-3\.3-70b|mistral-small|deepseek-chat|qwen.*instruct/.test(id)) s += 20;
     if (SLOW.test(id)) s -= 40;
