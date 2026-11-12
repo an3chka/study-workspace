@@ -45,8 +45,8 @@
     try {
       res = await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
     } catch (e) {
-      if (e.name === 'AbortError') throw Object.assign(new Error('Модель слишком долго думала.'), { retry: true });
-      throw new Error('Нет связи с сервисом нейросети. Проверь интернет' + (cfg().provider === 'gemini' ? ' или VPN.' : '.'));
+      if (e.name === 'AbortError') throw Object.assign(new Error('Модель слишком долго думала (нет ответа ' + Math.round((timeoutMs || 60000) / 1000) + ' с).'), { retry: true, kind: 'timeout' });
+      throw Object.assign(new Error('Нет связи с сервисом нейросети: браузер не смог отправить запрос. Проверь интернет' + (cfg().provider === 'gemini' ? ' или VPN.' : '.')), { kind: 'network' });
     } finally {
       clearTimeout(timer);
     }
@@ -169,14 +169,21 @@
             if (Date.now() > deadline) { firstErr = firstErr || new Error('Google слишком долго не отвечает. Проверь VPN и попробуй ещё раз.'); break outer; }
             AI.status = 'пробую ' + model + (ep.kind === 'vertex' ? ' (Vertex)' : '') + '…';
             try {
-              data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) },
+              const simple = c.simpleMode && ep.kind === 'studio';
+              data = await request(simple ? ep.url + '?key=' + encodeURIComponent(c.key) : ep.url,
+                simple ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) }
+                  : { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) },
                 o.json ? 90000 : 30000);
               if (c.endpoint !== ep.kind || (!c.model && c.autoModel !== model)) { c.endpoint = ep.kind; if (!c.model) c.autoModel = model; Store.saveSoon(); }
               break outer;
             } catch (e) {
               lastErr = e;
               // Google молчит или недоступен — дальше перебирать бессмысленно
-              if (/слишком долго|Нет связи/.test(e.message)) { timeouts++; firstErr = new Error('Google не отвечает (скорее всего, VPN не пропускает запросы к Google API).'); break outer; }
+              if (/слишком долго|Нет связи/.test(e.message)) {
+                timeouts++;
+                firstErr = new Error((e.kind === 'timeout' ? 'Google принял запрос, но не ответил за 30 с (модель ' + model + ').' : 'Браузер не смог отправить запрос в Google (модель ' + model + ').') + ' Нажми «Диагностика Gemini» в настройках.');
+                break outer;
+              }
               if (!/Модель не найдена/.test(e.message)) firstErr = firstErr || e;
               // ключ, регион, связь — дальше перебирать бессмысленно
               if (/регионе/.test(e.message) || (/Ключ не подошёл/.test(e.message) && !/^AQ\./.test(String(c.key)))) break outer;
@@ -255,6 +262,45 @@
       const base = String(c.baseUrl).replace(/\/+$/, '');
       const data = await request(base + '/models', { headers: c.key ? { Authorization: 'Bearer ' + c.key } : {} });
       return (data.data || data.models || []).map((m) => ({ id: m.id || m.name, label: m.id || m.name }));
+    },
+
+    // Подробная проверка Gemini по шагам — для поиска причины
+    async diagnoseGemini(onStep) {
+      const c = cfg();
+      const key = poolOf('gemini')[0] || c.key;
+      const lines = [];
+      const step = async (name, fn) => {
+        const t0 = Date.now();
+        onStep && onStep(name + '…');
+        try { const r = await fn(); lines.push('✓ ' + name + ': ' + r + ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' с)'); return true; }
+        catch (e) { lines.push('✗ ' + name + ': ' + e.message + ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' с)'); return false; }
+      };
+      if (!key) return ['✗ Нет ключа Gemini'];
+      lines.push('Ключ: ' + key.slice(0, 6) + '… (' + key.length + ' символов)');
+      let model = c.autoBy && c.autoBy.gemini || c.autoModel || '';
+      await step('Список моделей', async () => {
+        const data = await request('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } }, 20000);
+        const names = (data.models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => m.name.replace('models/', ''));
+        const flash = names.filter((n) => /flash/.test(n) && !/(image|tts|audio|live|thinking)/.test(n));
+        if (!model) model = flash.find((n) => /flash-latest/.test(n)) || flash.find((n) => !/lite|preview|exp/.test(n)) || flash[0] || names[0] || 'gemini-flash-latest';
+        return names.length + ' моделей, flash: ' + flash.slice(0, 6).join(', ');
+      });
+      model = model || 'gemini-flash-latest';
+      const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Ответь одним словом: привет' }] }] });
+      const reply = (data) => { const p = data.candidates && data.candidates[0] && data.candidates[0].content; const t = p && p.parts ? p.parts.map((x) => x.text || '').join('') : ''; if (!t) throw new Error('пустой ответ: ' + JSON.stringify(data).slice(0, 120)); return '«' + t.trim().slice(0, 40) + '»'; };
+      const okA = await step('Запрос к ' + model + ' (обычный, ждём до 90 с)', async () =>
+        reply(await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
+          { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body }, 90000)));
+      const okB = await step('Запрос к ' + model + ' (ключ в адресе, без доп. заголовков)', async () =>
+        reply(await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key),
+          { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body }, 90000)));
+      if (/^AQ\./.test(key)) {
+        await step('Запрос через Vertex AI', async () =>
+          reply(await request('https://aiplatform.googleapis.com/v1/publishers/google/models/' + encodeURIComponent(model) + ':generateContent',
+            { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body }, 60000)));
+      }
+      if (okA || okB) { c.autoBy = c.autoBy || {}; c.autoBy.gemini = model; if (c.provider === 'gemini') c.autoModel = model; if (okB && !okA) c.simpleMode = true; Store.save(); }
+      return lines;
     },
 
     // Проверка подключения: короткий запрос.

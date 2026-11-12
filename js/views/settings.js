@@ -108,10 +108,12 @@
           (c.models || []).map((m) => '<option value="' + U.esc(m.id) + '"' + (m.id === c.model ? ' selected' : '') + '>' + U.esc(m.label) + '</option>').join('') +
         '</select><button type="button" class="btn" data-s="ai-models">Загрузить список</button></span></label>' +
         '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
+        (c.provider === 'gemini' || AI.pool('gemini').length ? '<button type="button" class="btn" data-s="ai-diag">' + I('search') + ' Диагностика Gemini</button>' : '') +
         (used ? '<span class="muted small">запросов сегодня: ' + used + '</span>' : '') + '</div>' +
         (c.lastTest ? '<div class="ai-status ' + (c.lastTest.ok ? 'ok' : 'bad') + '">' + I(c.lastTest.ok ? 'check-circle' : 'alert') +
           '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' + (c.lastTest.via ? '. Ответил запасной ' + U.esc(c.lastTest.via) + '.<br><b>Почему не ответил ' + U.esc(AI.PROVIDERS[c.provider].name.split(' ')[0]) + ':</b> ' + U.esc(c.lastTest.why || 'неизвестно') : '') : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
           ' <small class="muted">(' + U.timeLabel(c.lastTest.ts) + ')</small></span></div>' : '') +
+        (c.diag ? '<div class="diag"><div class="card-head"><b>Диагностика Gemini</b><button type="button" class="btn small ghost" data-s="diag-copy">' + I('note') + ' Скопировать</button></div><pre>' + U.esc(c.diag.join('\n')) + '</pre></div>' : '') +
       '</form></section>';
   }
 
@@ -224,6 +226,17 @@
         return true;
       });
       if (r) { Store.save(); App.render(); }
+    }
+    if (b.dataset.s === 'ai-diag') {
+      const c = AI.cfg();
+      b.disabled = true;
+      const lines = await AI.diagnoseGemini((txt) => { if (b.isConnected) b.innerHTML = '<span class="spinner"></span> ' + U.esc(txt); });
+      c.diag = lines;
+      Store.save(); App.render();
+    }
+    if (b.dataset.s === 'diag-copy') {
+      const txt = (AI.cfg().diag || []).join('\n');
+      try { await navigator.clipboard.writeText(txt); U.toast('Скопировано'); } catch (e) { window.prompt('Скопируй:', txt); }
     }
     if (b.dataset.s === 'export') {
       S().settings.lastBackup = Date.now();
