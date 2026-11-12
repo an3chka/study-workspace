@@ -150,10 +150,10 @@
 
     async askOne(o) {
       const c = cfg();
-      if (c.geminiPickV !== 2) {
-        c.geminiPickV = 2;
-        if (/preview|3\.\d-flash/.test(c.autoModel || '') && c.provider === 'gemini') c.autoModel = '';
-        if (c.autoBy && /preview|3\.\d-flash/.test(c.autoBy.gemini || '')) c.autoBy.gemini = '';
+      if (c.geminiPickV !== 3) {
+        c.geminiPickV = 3;
+        if (c.provider === 'gemini') c.autoModel = '';
+        if (c.autoBy) c.autoBy.gemini = '';
         Store.saveSoon();
       }
       if (!AI.ready()) throw new Error('Нейросеть не подключена. Открой Настройки → «Нейросеть».');
@@ -179,14 +179,7 @@
             AI.status = 'пробую ' + model + (ep.kind === 'vertex' ? ' (Vertex)' : '') + '…';
             try {
               const simple = c.simpleMode && ep.kind === 'studio';
-              const th = thinkingOff(model);
-              const gc = Object.assign({}, body.generationConfig);
-              if (th.thinkingConfig) gc.thinkingConfig = th.thinkingConfig;
-              const payload = JSON.stringify(Object.assign({}, body, { generationConfig: gc }));
-              data = await request(simple ? ep.url + '?key=' + encodeURIComponent(c.key) : ep.url,
-                simple ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload }
-                  : { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: payload },
-                o.json ? 90000 : 30000);
+              data = await geminiCall(ep.url, c.key, body, model, o.json ? 90000 : 30000, simple);
               if (c.endpoint !== ep.kind || (!c.model && c.autoModel !== model)) { c.endpoint = ep.kind; if (!c.model) c.autoModel = model; Store.saveSoon(); }
               break outer;
             } catch (e) {
@@ -298,8 +291,7 @@
         const flash = names.filter((n) => /flash/.test(n) && !/(image|tts|audio|live|thinking)/.test(n));
         return names.length + ' моделей, flash: ' + flash.slice(0, 6).join(', ');
       });
-      const prefer = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite'];
-      const toTry = prefer.filter((m) => !names.length || names.includes(m)).slice(0, 3);
+      const toTry = names.length ? rankGemini(names).slice(0, 4) : ['gemini-flash-latest'];
       if (!toTry.length) toTry.push('gemini-flash-latest');
       const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Ответь одним словом: привет' }] }] });
       const reply = (data) => { const p = data.candidates && data.candidates[0] && data.candidates[0].content; const t = p && p.parts ? p.parts.map((x) => x.text || '').join('') : ''; if (!t) throw new Error('пустой ответ: ' + JSON.stringify(data).slice(0, 120)); return '«' + t.trim().slice(0, 40) + '»'; };
@@ -307,14 +299,13 @@
       for (const m of toTry) {
         const t0 = Date.now();
         const ok = await step('Запрос к ' + m, async () =>
-          reply(await request('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent',
-            { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(Object.assign(JSON.parse(body), { generationConfig: thinkingOff(m) })) }, 60000)));
+          reply(await geminiCall('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent', key, JSON.parse(body), m, 60000)));
         const dt = Date.now() - t0;
         if (ok && dt < bestTime) { best = m; bestTime = dt; }
         if (ok && dt < 5000) break; // нашли быструю — дальше не тратим лимит
       }
       if (best) {
-        c.autoBy = c.autoBy || {}; c.autoBy.gemini = best; c.simpleMode = false;
+        c.autoBy = c.autoBy || {}; c.autoBy.gemini = best; c.simpleMode = false; c.geminiPickV = 3;
         if (c.provider === 'gemini') c.autoModel = best;
         c.endpoint = 'studio';
         Store.save();
@@ -340,22 +331,66 @@
     if (c.autoModel) out.push(c.autoModel);
     try {
       const list = await AI.listModels();
-      list.slice(0, 2).forEach((m) => out.push(m.id));
+      rankGemini(list.map((m) => m.id)).slice(0, 4).forEach((m) => out.push(m));
     } catch (e) { /* список недоступен — возьмём известные названия */ }
-    ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.0-flash'].forEach((m) => out.push(m));
-    return Array.from(new Set(out)).slice(0, 6);
+    ['gemini-flash-latest', 'gemini-flash-lite-latest'].forEach((m) => out.push(m));
+    return Array.from(new Set(out)).slice(0, 5);
   }
 
   // Для flash-моделей просим не «размышлять» долго — так ответ приходит за секунды
   function thinkingOff(model) {
-    return /2\.5-flash|flash-latest|flash-lite/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {};
+    if (/2\.5-flash/.test(model)) return { thinkingConfig: { thinkingBudget: 0 } };           // Gemini 2.5
+    if (/gemini-3|flash-latest|flash-lite-latest/.test(model)) return { thinkingConfig: { thinkingLevel: 'low' } }; // Gemini 3+
+    return {};
+  }
+
+  // Запрос к Gemini с «умными» повторами:
+  //  • 400 из-за настройки размышлений → повтор без неё
+  //  • 503 «перегружен» → пауза и ещё одна попытка
+  async function geminiCall(url, key, body, model, timeoutMs, simple) {
+    const c = cfg();
+    c.noThink = c.noThink || {};
+    const th = c.noThink[model] ? {} : thinkingOff(model);
+    const variants = th.thinkingConfig ? [th.thinkingConfig, null] : [null];
+    let lastErr = null;
+    for (const thinking of variants) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const gc = Object.assign({}, body.generationConfig || {});
+        delete gc.thinkingConfig;
+        if (thinking) gc.thinkingConfig = thinking;
+        const payload = JSON.stringify(Object.assign({}, body, { generationConfig: gc }));
+        try {
+          const res = await request(simple ? url + '?key=' + encodeURIComponent(key) : url,
+            simple ? { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload }
+              : { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: payload }, timeoutMs);
+          if (!thinking && th.thinkingConfig) { c.noThink[model] = true; Store.saveSoon(); } // запомним: этой модели настройка не нужна
+          return res;
+        } catch (e) {
+          lastErr = e;
+          if (/перегружен/.test(e.message) && attempt === 0) { await new Promise((r) => setTimeout(r, 2000)); continue; }
+          break;
+        }
+      }
+      // повтор без настройки размышлений — только если ошибка похожа на «неверный параметр»
+      if (!(lastErr && /\(400\)|invalid argument/i.test(lastErr.message))) break;
+    }
+    throw lastErr;
+  }
+
+  // Модели Gemini из списка Google, в порядке «быстрые и надёжные — первыми»
+  function rankGemini(names) {
+    const flash = names.filter((n) => /flash/.test(n) && !/(image|tts|audio|live|thinking|embedding)/.test(n));
+    const ver = (n) => { const m = /gemini-(\d+(?:\.\d+)?)/.exec(n); return m ? Number(m[1]) : 0; };
+    const sc = (n) => (n === 'gemini-flash-latest' ? 1000 : 0) + (n === 'gemini-flash-lite-latest' ? 500 : 0) +
+      (/preview|exp/.test(n) ? -200 : 0) + (/lite/.test(n) ? -50 : 0) + ver(n) * 10;
+    return flash.sort((a, b) => sc(b) - sc(a));
   }
 
   function geminiEndpoints(model) {
     const c = cfg();
     const studio = { kind: 'studio', url: 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent' };
     const vertex = { kind: 'vertex', url: 'https://aiplatform.googleapis.com/v1/publishers/google/models/' + encodeURIComponent(model) + ':generateContent' };
-    if (!/^AQ\./.test(String(c.key || ''))) return [studio];
+    if (!/^AQ\./.test(String(c.key || '')) || c.endpoint === 'studio') return [studio];
     return c.endpoint === 'vertex' ? [vertex, studio] : [studio, vertex];
   }
 
