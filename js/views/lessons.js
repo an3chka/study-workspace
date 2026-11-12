@@ -162,10 +162,10 @@
   };
 
   // Вопросы на понимание текста (из «Чтения»)
-  App.startQuiz = function (title, questions, onDone) {
+  App.startQuiz = function (title, questions, onDone, backHref) {
     const lesson = sanitize({ title, intro: '', exercises: questions });
     if (!lesson.exercises.length) { U.toast('Вопросы получились неполными'); return; }
-    game = { kind: 'quiz', lesson, i: 0, hearts: Infinity, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), onDone };
+    game = { kind: 'quiz', lesson, i: 0, hearts: Infinity, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), onDone, backHref: backHref || '#/read' };
     openGame();
   };
 
@@ -460,7 +460,7 @@
       (s ? '<div class="level-suggest">' + (s.dir === 'up' ? I('trend-up') + ' Ты стабильно справляешься — попробуешь уровень <b>' + s.to + '</b>?' : I('trend-down') + ' Похоже, сейчас сложновато. Немного снизим до <b>' + s.to + '</b>?') +
         ' <button class="btn small primary" data-l="set-level" data-v="' + s.to + '">Да</button></div>' : '') +
       mistakesHTML('Эти ошибки попадут в «Работу над ошибками» и в следующие уроки.') +
-      (game.kind === 'quiz' ? '<div class="row-btns"><a class="btn primary" href="#/read">' + I('book') + ' К чтению</a></div>' :
+      (game.kind === 'quiz' ? '<div class="row-btns"><a class="btn primary" href="' + game.backHref + '">' + I('book') + (game.backHref === '#/theory' ? ' К теории' : ' К чтению') + '</a></div>' :
         '<div class="row-btns"><button class="btn" data-l="home">К урокам</button><button class="btn primary" data-l="again">' + I('play') + ' Ещё урок</button></div>') +
       '</div></div>';
   }

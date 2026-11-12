@@ -32,6 +32,7 @@
     const level = S().lessons.level;
     const d = done();
     const groups = ['A1', 'A2', 'B1', 'B2', 'C1'];
+    const lt = S().lessons.levelTests || {};
     el.innerHTML =
       '<header class="page-head"><div><h1>Языки</h1><p class="muted">Справочник грамматики: коротко, с примерами и тренировкой</p></div></header>' + App.langTabs('theory') +
       (level ? '<p class="muted">Твой уровень: <b>' + level + '</b>. Начни с тем своего уровня и тех, где были ошибки в тесте.</p>' :
@@ -41,7 +42,9 @@
       groups.map((lv) => {
         const list = (window.GRAMMAR || []).filter((t) => t.level === lv);
         return '<section class="card"><div class="card-head"><h2><span class="lvl-badge">' + lv + '</span> ' + LEVEL_TXT[lv] + '</h2>' +
-          '<span class="muted small">' + list.filter((t) => d[t.id]).length + ' из ' + list.length + ' потренировано</span></div>' +
+          '<span class="muted small">' + list.filter((t) => d[t.id]).length + ' из ' + list.length + ' потренировано' +
+          (lt[lv] != null ? ' · тест уровня: ' + lt[lv] + '%' : '') + '</span>' +
+          '<button class="btn small ai-btn" data-th="level-test" data-lv="' + lv + '">' + I('target') + ' Тест по уровню ' + lv + '</button></div>' +
           '<div class="topic-grid">' + list.map((t) =>
             '<a class="topic-card' + (d[t.id] ? ' done' : '') + '" href="#/theory/' + t.id + '"><b>' + U.esc(t.title) + '</b><small>' + U.esc(t.summary) + '</small>' +
             (d[t.id] ? '<span class="topic-done">' + I('check') + ' ' + d[t.id] + '%</span>' : '') + '</a>').join('') + '</div></section>';
@@ -79,7 +82,21 @@
     if (b.dataset.th === 'speak') App.speak(b.dataset.t, 'en-US');
     if (b.dataset.th === 'drill' && t) App.startDrill(t);
     if (b.dataset.th === 'ai-lesson' && t) App.startTopicLesson(b, t);
+    if (b.dataset.th === 'level-test') levelTest(b.dataset.lv);
   });
+
+  // Проверочный тест по уровню: случайные задания из всех тем уровня (без нейросети)
+  function levelTest(lv) {
+    const pool = [];
+    (window.GRAMMAR || []).filter((t) => t.level === lv).forEach((t) => t.drill.forEach((x) => pool.push(Object.assign({ topic: t.id }, x))));
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    App.startQuiz('Тест по уровню ' + lv, pool.slice(0, 12), (pct) => {
+      const p = S().lessons;
+      p.levelTests = p.levelTests || {};
+      p.levelTests[lv] = Math.max(p.levelTests[lv] || 0, pct);
+      Store.save();
+    }, '#/theory');
+  }
 
   App.views.theory = { render, group: 'cards', leave() { root = null; } };
 })();

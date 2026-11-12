@@ -131,7 +131,7 @@
     return '<section class="card"><div class="card-head"><h2 class="h-ic">' + I('book') + ' Библиотека</h2>' +
       '<span class="muted small">тексты по уровням, написаны для кабинета' + (level ? ' · твой уровень ' + level : '') + '</span></div>' +
       '<div class="lib-grid">' + (lib.every((x) => mine.has(x.id)) ? '<p class="muted">Все тексты библиотеки уже открыты — скоро добавлю новые!</p>' : '') +
-      lib.filter((x) => !mine.has(x.id)).map((x) => {
+      lib.filter((x) => !mine.has(x.id)).sort((a, b) => ['A1', 'A2', 'B1', 'B2', 'C1'].indexOf(a.level) - ['A1', 'A2', 'B1', 'B2', 'C1'].indexOf(b.level)).map((x) => {
         const words = x.body.split(/\s+/).length;
         return '<button class="lib-item' + (level === x.level ? ' mine-level' : '') + '" data-r="lib-open" data-id="' + x.id + '">' +
           '<span class="lvl-badge">' + x.level + '</span><b>' + U.esc(x.title) + '</b>' +

@@ -131,6 +131,7 @@
         '<div class="card empty-state"><p>Колод пока нет.</p><p class="muted">Создай свою или начни с примера — 15 английских слов.</p>' +
         '<div class="row-btns"><button class="btn primary" data-c="new-deck">Создать колоду</button><button class="btn" data-c="sample">Добавить пример</button></div></div>') +
       '</div>' +
+      setsHTML() +
       '<details class="card help"><summary>Как работает интервальное повторение?</summary>' +
       '<p>После ответа выбирай, насколько легко вспомнилось слово. «Не помню» — карточка вернётся через минуту. ' +
       '«Трудно», «Хорошо», «Легко» — она появится через 1, 3, 7, 20… дней: каждый раз интервал растёт. ' +
@@ -378,6 +379,28 @@
     });
   }
 
+  // Готовые наборы слов из встроенной базы
+  function setsHTML() {
+    const sets = window.VOCAB_SETS || [];
+    if (!sets.length) return '';
+    const have = new Set(S().decks.map((d) => d.setId).filter(Boolean));
+    const left = sets.filter((x) => !have.has(x.id));
+    if (!left.length) return '';
+    return '<section class="card"><div class="card-head"><h2 class="h-ic">' + I('cards') + ' Готовые наборы слов</h2><span class="muted small">добавляются одной кнопкой, без нейросети</span></div>' +
+      '<div class="lib-grid">' + left.map((x) => '<button class="lib-item" data-c="add-set" data-id="' + x.id + '"><span class="lvl-badge">' + x.level + '</span><b>' + U.esc(x.title) + '</b>' +
+        '<small>' + x.words.length + ' слов · ' + U.esc(x.words.slice(0, 3).map((w) => w[0]).join(', ')) + '…</small></button>').join('') + '</div></section>';
+  }
+
+  function addSet(id) {
+    const x = (window.VOCAB_SETS || []).find((v) => v.id === id);
+    if (!x) return;
+    const deck = { id: U.uid(), setId: x.id, name: x.title, lang: 'en-US', direction: 'fb', created: Date.now(),
+      cards: x.words.map(([f, b, n]) => ({ id: U.uid(), front: f, back: b, note: n || '', created: Date.now() })) };
+    S().decks.push(deck);
+    Store.save(); App.render();
+    U.toast('Добавлена колода «' + x.title + '»: ' + x.words.length + ' слов');
+  }
+
   function addSample() {
     const words = [
       ['journey', 'путешествие, поездка', 'Life is a journey.'], ['to borrow', 'брать взаймы', 'Can I borrow your pen?'],
@@ -407,6 +430,7 @@
     switch (b.dataset.c) {
       case 'new-deck': deckModal(); break;
       case 'gen-deck': genDeckModal(); break;
+      case 'add-set': addSet(id); break;
       case 'sample': addSample(); break;
       case 'open': screen = { name: 'deck', id }; App.render(); break;
       case 'back': screen = study && screen.name === 'study' ? { name: 'deck', id: study.deckId } : { name: 'list' }; if (screen.name === 'deck' && b.closest('.study-done')) screen = { name: 'list' }; study = null; App.render(); break;

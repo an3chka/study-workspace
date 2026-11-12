@@ -1,10 +1,10 @@
 // Service worker: сохраняет файлы приложения, чтобы оно открывалось без интернета.
 // При изменении файлов увеличь номер версии — тогда браузер скачает свежие.
-const CACHE = 'kabinet-v22';
+const CACHE = 'kabinet-v23';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/icons.js', 'js/utils.js', 'js/store.js', 'js/ai.js', 'js/audio.js', 'js/timer.js', 'js/charts.js', 'js/stats-data.js', 'js/insights.js',
-  'js/views/home.js', 'js/views/plan.js', 'js/views/stats.js', 'js/views/cards.js', 'js/views/read.js', 'js/views/lessons.js', 'js/views/theory.js', 'js/content/grammar.js', 'js/content/grammar2.js', 'js/content/placement.js', 'js/content/library.js', 'js/content/library-quiz.js',
+  'js/views/home.js', 'js/views/plan.js', 'js/views/stats.js', 'js/views/cards.js', 'js/views/read.js', 'js/views/lessons.js', 'js/views/theory.js', 'js/content/grammar.js', 'js/content/grammar2.js', 'js/content/placement.js', 'js/content/library.js', 'js/content/library-quiz.js', 'js/content/library2.js', 'js/content/vocab.js',
   'js/views/hobby.js', 'js/views/mind.js', 'js/views/settings.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
