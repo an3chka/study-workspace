@@ -88,11 +88,13 @@
   }
 
   function renderList(el) {
-    const texts = S().texts;
+    const reading = S().texts.filter((t) => !t.read);
+    const done = S().texts.filter((t) => t.read).sort((a, b) => (b.readAt || 0) - (a.readAt || 0));
     el.innerHTML =
       '<header class="page-head"><div><h1>Языки</h1><p class="muted">Читай тексты и собирай незнакомые слова в карточки</p></div>' +
       '<button class="btn primary" data-r="new">+ Текст</button></header>' + tabs('read') +
-      '<div class="deck-grid">' + (texts.length ? texts.slice().reverse().map((t) => {
+      (reading.length ? '<h2 class="sect-title">' + I('book') + ' Читаю сейчас</h2>' : '') +
+      '<div class="deck-grid">' + (reading.length ? reading.slice().reverse().map((t) => {
         const s = textStats(t);
         const pctKnown = s.total ? Math.round((s.known + s.learned) / s.total * 100) : 0;
         return '<article class="card deck">' +
@@ -102,10 +104,22 @@
           '<div class="progress" title="Знакомые слова"><span style="width:' + pctKnown + '%"></span></div>' +
           '<div class="deck-actions"><button class="btn primary" data-r="open" data-id="' + t.id + '">Читать</button>' +
           '<button class="btn" data-r="edit" data-id="' + t.id + '">Изменить</button></div></article>';
-      }).join('') :
-        '<div class="card empty-state"><p>Текстов пока нет.</p><p class="muted">Вставь статью, главу книги или текст песни — и нажимай на незнакомые слова.</p>' +
-        '<div class="row-btns"><button class="btn primary" data-r="new">Добавить текст</button><button class="btn" data-r="sample">Пример на английском</button></div></div>') +
-      '</div>' + libraryHTML();
+      }).join('') : (done.length ? '' :
+        '<div class="card empty-state"><p>Текстов пока нет.</p><p class="muted">Выбери текст из библиотеки ниже или вставь свой: статью, главу книги, текст песни.</p>' +
+        '<div class="row-btns"><button class="btn primary" data-r="new">Добавить свой текст</button></div></div>')) +
+      '</div>' + libraryHTML() + doneHTML(done);
+  }
+
+  // Прочитанные тексты — свёрнутым списком
+  function doneHTML(done) {
+    if (!done.length) return '';
+    return '<details class="card done-texts"><summary><b>' + I('check-circle') + ' Прочитано (' + done.length + ')</b></summary><ul class="done-list">' +
+      done.map((t) => {
+        const q = t.quiz ? ' · вопросы ' + t.quiz + '%' : '';
+        return '<li><span class="dl-title">' + U.esc(t.title) + '</span><span class="muted small">' + (t.readAt ? U.dateLabel(t.readAt) : '') + q + '</span>' +
+          '<button class="btn small ghost" data-r="open" data-id="' + t.id + '">Открыть</button>' +
+          '<button class="btn small ghost" data-r="unread" data-id="' + t.id + '" title="Вернуть в «Читаю сейчас»">Перечитать</button></li>';
+      }).join('') + '</ul></details>';
   }
 
   // Встроенная библиотека текстов по уровням
@@ -116,12 +130,43 @@
     const level = S().lessons && S().lessons.level;
     return '<section class="card"><div class="card-head"><h2 class="h-ic">' + I('book') + ' Библиотека</h2>' +
       '<span class="muted small">тексты по уровням, написаны для кабинета' + (level ? ' · твой уровень ' + level : '') + '</span></div>' +
-      '<div class="lib-grid">' + lib.map((x) => {
+      '<div class="lib-grid">' + (lib.every((x) => mine.has(x.id)) ? '<p class="muted">Все тексты библиотеки уже открыты — скоро добавлю новые!</p>' : '') +
+      lib.filter((x) => !mine.has(x.id)).map((x) => {
         const words = x.body.split(/\s+/).length;
         return '<button class="lib-item' + (level === x.level ? ' mine-level' : '') + '" data-r="lib-open" data-id="' + x.id + '">' +
           '<span class="lvl-badge">' + x.level + '</span><b>' + U.esc(x.title) + '</b>' +
           '<small>' + U.esc(x.topic) + ' · ' + Math.max(1, Math.round(words / 150)) + ' мин чтения' + (mine.has(x.id) ? ' · ' + I('check', 'inline') + ' открыт' : '') + '</small></button>';
       }).join('') + '</div></section>';
+  }
+
+  function markRead(t, silent) {
+    t.read = true; t.readAt = Date.now();
+    Store.save();
+    if (!silent) U.toast('«' + t.title + '» — прочитано! Он в разделе «Прочитано».');
+  }
+
+  // Вопросы на понимание: встроенные для библиотеки, для своих текстов — от нейросети
+  async function startQuiz(btn, t) {
+    let qs = t.libId && window.LIBRARY_QUIZ ? window.LIBRARY_QUIZ[t.libId] : null;
+    if (!qs) {
+      const prompt = 'Составь 4 вопроса на понимание текста ниже (язык вопросов — как у текста, уровень — простой). ' +
+        'Один вопрос можно сделать с ловушкой (вариант, которого в тексте нет). ' +
+        'Верни JSON: {"questions": [{"question": "...", "options": ["...", "...", "...", "..."], "answer": 0, "explain": "где это в тексте, по-русски"}]}\n\nТекст:\n' + bodyOf(t).slice(0, 4000);
+      if (!AI.ready() && !AI._mock) {
+        try { await navigator.clipboard.writeText(prompt); U.toast('Нейросеть не подключена — запрос на вопросы скопирован, вставь его в любую нейросеть'); } catch (e) { window.prompt('Скопируй:', prompt); }
+        return;
+      }
+      const r = await AI.run(btn, () => AI.ask({ json: true, temperature: 0.4, system: 'Ты — преподавательница языка. Пишешь точные вопросы строго по тексту.', prompt }));
+      if (!r) return;
+      qs = (r.questions || []).map((q) => Object.assign({ type: 'choice' }, q));
+    }
+    if (!qs || !qs.length) { U.toast('Не получилось составить вопросы'); return; }
+    App.startQuiz('Понимание: ' + t.title, qs, (pct) => {
+      t.quiz = Math.max(t.quiz || 0, pct);
+      if (pct >= 50 && !t.read) markRead(t, true);
+      if (t.read) openId = null; // вернёмся к списку — текст уже в «Прочитано»
+      Store.save();
+    });
   }
 
   function openLibrary(id) {
@@ -165,6 +210,11 @@
       '<div class="reader-foot">' +
         '<p class="muted small">Нажми на слово, чтобы перевести и добавить в карточки. Можно выделить несколько слов — добавится фраза.</p>' +
         (s.unknown ? '<button class="btn" data-r="all-known">' + I('check') + ' Я знаю все неотмеченные слова (' + s.unknown + ')</button>' : '') +
+        '<div class="row-btns finish-text">' +
+          '<button class="btn ai-btn" data-r="quiz">' + I('target') + ' Вопросы на понимание</button>' +
+          (t.read ? '<button class="btn" data-r="unread" data-id="' + t.id + '">Вернуть в «Читаю сейчас»</button>' : '<button class="btn primary" data-r="mark-read">' + I('check') + ' Прочитала</button>') +
+        '</div>' +
+        (t.quiz ? '<p class="muted small">Вопросы на понимание: ' + t.quiz + '%</p>' : '') +
       '</div>';
 
     const reader = el.querySelector('#reader');
@@ -571,6 +621,9 @@
       case 'new': textModal(); break;
       case 'sample': addSample(); break;
       case 'lib-open': openLibrary(b.dataset.id); break;
+      case 'mark-read': if (t) { markRead(t); openId = null; App.render(); window.scrollTo(0, 0); } break;
+      case 'unread': { const x = text(b.dataset.id); if (x) { x.read = false; x.readAt = null; Store.save(); App.render(); } break; }
+      case 'quiz': if (t) startQuiz(b, t); break;
       case 'open': openId = b.dataset.id; App.render(); break;
       case 'back': openId = null; App.render(); break;
       case 'edit': textModal(text(b.dataset.id)); break;

@@ -924,3 +924,13 @@ textarea.secret.shown { -webkit-text-security: none; }
 .toast-undo button { border: 0; background: var(--grad); color: var(--on-grad); font: inherit; font-weight: 800; padding: 4px 10px; border-radius: 8px; cursor: pointer; }
 .hist-day { margin-bottom: 10px; }
 .hist-date { font-weight: 700; font-size: .9rem; color: var(--muted); margin: 6px 0 2px; }
+.sect-title { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; margin: 4px 0 -4px; }
+.sect-title .ic { color: var(--accent); }
+.done-texts summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; }
+.done-texts summary b { display: inline-flex; align-items: center; gap: 8px; }
+.done-texts summary .ic { color: var(--good); }
+.done-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.done-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.done-list li:last-child { border-bottom: 0; }
+.dl-title { flex: 1; min-width: 140px; font-weight: 600; }
+.finish-text { justify-content: center; margin-top: 8px; }

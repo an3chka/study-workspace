@@ -161,6 +161,14 @@
     openGame();
   };
 
+  // Вопросы на понимание текста (из «Чтения»)
+  App.startQuiz = function (title, questions, onDone) {
+    const lesson = sanitize({ title, intro: '', exercises: questions });
+    if (!lesson.exercises.length) { U.toast('Вопросы получились неполными'); return; }
+    game = { kind: 'quiz', lesson, i: 0, hearts: Infinity, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), onDone };
+    openGame();
+  };
+
   // Урок от нейросети по теме из «Теории»
   App.startTopicLesson = function (btn, t) {
     startLesson(btn, { focus: 'grammar', topic: t.title + ' (' + t.summary + ')', topicId: t.id });
@@ -236,6 +244,7 @@
       game.mistakes.forEach((m) => prof.mistakes.push(Object.assign({ ts: Date.now() }, m)));
       prof.mistakes = prof.mistakes.slice(-40);
       game.result = { stars, ratio, perfect, suggestion: game.kind === 'lesson' ? suggestLevel() : null, done, total };
+      if (game.kind === 'quiz' && game.onDone) game.onDone(Math.round(ratio * 100));
       if (game.kind === 'drill' && game.topicId) {
         prof.theoryDone = prof.theoryDone || {};
         prof.theoryDone[game.topicId] = Math.max(prof.theoryDone[game.topicId] || 0, Math.round(ratio * 100));
@@ -451,7 +460,8 @@
       (s ? '<div class="level-suggest">' + (s.dir === 'up' ? I('trend-up') + ' Ты стабильно справляешься — попробуешь уровень <b>' + s.to + '</b>?' : I('trend-down') + ' Похоже, сейчас сложновато. Немного снизим до <b>' + s.to + '</b>?') +
         ' <button class="btn small primary" data-l="set-level" data-v="' + s.to + '">Да</button></div>' : '') +
       mistakesHTML('Эти ошибки попадут в «Работу над ошибками» и в следующие уроки.') +
-      '<div class="row-btns"><button class="btn" data-l="home">К урокам</button><button class="btn primary" data-l="again">' + I('play') + ' Ещё урок</button></div>' +
+      (game.kind === 'quiz' ? '<div class="row-btns"><a class="btn primary" href="#/read">' + I('book') + ' К чтению</a></div>' :
+        '<div class="row-btns"><button class="btn" data-l="home">К урокам</button><button class="btn primary" data-l="again">' + I('play') + ' Ещё урок</button></div>') +
       '</div></div>';
   }
 
