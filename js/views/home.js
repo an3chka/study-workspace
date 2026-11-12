@@ -68,7 +68,8 @@
           '<button class="chip' + (filter === 'all' ? ' on' : '') + '" data-act="filter" data-id="all">Все</button>' +
           usedCats.map((c) => '<button class="chip' + (filter === c.id ? ' on' : '') + '" data-act="filter" data-id="' + c.id + '"><i style="background:' + c.color + '"></i>' + U.esc(c.name) + '</button>').join('') +
         '</div>' : '') +
-        (recent.length ? '<div class="continue"><div class="continue-head">' + I('play') + ' Продолжить' + (filter !== 'all' ? ' в «' + U.esc(Store.category(filter).name) + '»' : '') + '</div><div class="continue-list">' +
+        // «Продолжить» нужен, только когда задач много — иначе это дубль списка ниже
+        (recent.length && tasks.length > 4 ? '<div class="continue"><div class="continue-head">' + I('play') + ' Продолжить' + (filter !== 'all' ? ' в «' + U.esc(Store.category(filter).name) + '»' : '') + '</div><div class="continue-list">' +
           recent.map((t) => {
             const c = Store.category(t.categoryId);
             const l = last[t.id];
