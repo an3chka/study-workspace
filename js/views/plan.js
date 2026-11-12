@@ -91,6 +91,7 @@
           '<button class="btn primary">Добавить</button>' +
         '</form>' +
         '<div class="row-btns plan-copy">' +
+          '<button class="btn small ai-btn" data-pl="ai-plan">' + I('sparkles') + ' Составить план из текста</button>' +
           '<button class="btn small" data-pl="copy" data-from="-1">Скопировать со вчера</button>' +
           '<button class="btn small" data-pl="copy" data-from="-7">Как в тот же день прошлой недели</button>' +
           (list.length ? '<button class="btn small ghost danger-text" data-pl="clear">Очистить день</button>' : '') +
@@ -114,6 +115,79 @@
       '<ul class="carry-list">' + left.slice(0, 6).map((b) => '<li><span class="muted small">' + U.dateLabel(new Date(b.day + 'T12:00:00').getTime()) + ', ' + b.start + '</span> ' + U.esc(b.title) + '</li>').join('') +
       (left.length > 6 ? '<li class="muted small">и ещё ' + (left.length - 6) + '</li>' : '') + '</ul>' +
       '<div class="row-btns"><button class="btn primary" data-pl="carry">Перенести на сегодня (' + left.length + ')</button><button class="btn ghost" data-pl="skip-left">Не нужно</button></div></section>';
+  }
+
+  // ---------- План из текста (нейросеть) ----------
+
+  function aiPlanPrompt(text, key) {
+    const isToday = key === U.dayKey(Date.now());
+    const now = new Date();
+    const existing = blocksOf(key).map((b) => b.start + '–' + b.end + ' ' + b.title);
+    const tasks = S().tasks.filter((t) => !t.archived).map((t) => t.name);
+    return 'Составь расписание на ' + (isToday ? 'сегодня' : U.dateLabel(new Date(key + 'T12:00:00').getTime())) + ' по описанию студентки.\n' +
+      (isToday ? 'Сейчас ' + U.pad(now.getHours()) + ':' + U.pad(now.getMinutes()) + ' — не ставь блоки в прошлое.\n' : '') +
+      (existing.length ? 'Уже запланировано (не пересекайся): ' + existing.join('; ') + '.\n' : '') +
+      (tasks.length ? 'Её задачи (если подходит — используй ровно эти названия): ' + tasks.join(', ') + '.\n' : '') +
+      'Описание: «' + text + '»\n\n' +
+      'Правила: реалистичные интервалы, короткие перерывы между долгими занятиями, время в формате ЧЧ:ММ. Если время не указано — расставь сама разумно. ' +
+      'Верни JSON: {"blocks": [{"start": "09:00", "end": "10:30", "title": "коротко, по-русски"}], "tip": "один короткий совет по плану или пустая строка"}';
+  }
+
+  function aiPlanModal() {
+    const key = U.dayKey(dayTs());
+    App.modal({
+      title: 'План из текста',
+      body:
+        '<p class="muted small">Опиши день своими словами — нейросеть разложит его по времени, а ты проверишь и добавишь.</p>' +
+        '<textarea name="text" rows="5" required placeholder="Например: пары до 13, потом обед, 2 часа курсовая, полчаса английского, вечером спорт и созвон с мамой в 21"></textarea>',
+      submit: 'Разложить по времени',
+      extra: '<button type="button" class="btn ghost" data-x="copy">' + I('note') + ' Скопировать запрос</button>',
+      onOpen(form) {
+        form.querySelector('[data-x=copy]').addEventListener('click', async () => {
+          const txt = aiPlanPrompt(form.text.value.trim() || '…', key);
+          try { await navigator.clipboard.writeText(txt); U.toast('Запрос скопирован — вставь его в любую нейросеть'); } catch (e) { window.prompt('Скопируй:', txt); }
+        });
+      },
+      onSubmit(d, form) {
+        if (!d.text) return false;
+        if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть в настройках — или нажми «Скопировать запрос»'); return false; }
+        const btn = form.querySelector('button[type=submit]');
+        AI.run(btn, () => AI.ask({ json: true, temperature: 0.4, system: 'Ты — внимательный помощник по планированию дня для студентки.', prompt: aiPlanPrompt(d.text, key) }))
+          .then((r) => {
+            const blocks = (r && Array.isArray(r.blocks) ? r.blocks : []).filter((b) => /^\d{1,2}:\d{2}$/.test(b.start || '') && /^\d{1,2}:\d{2}$/.test(b.end || '') && b.title)
+              .map((b) => ({ start: fromMin(toMin(b.start)), end: fromMin(toMin(b.end)), title: String(b.title).slice(0, 80) }))
+              .filter((b) => toMin(b.end) > toMin(b.start));
+            if (!blocks.length) { if (r) U.toast('Не получилось разобрать план. Попробуй описать подробнее.'); return; }
+            App.closeModal();
+            aiPlanPreview(key, blocks, r.tip || '');
+          });
+        return false; // окно закроем сами, когда придёт ответ
+      },
+    });
+  }
+
+  function aiPlanPreview(key, blocks, tip) {
+    App.modal({
+      title: 'Проверь план',
+      body: (tip ? '<div class="ai-status ok">' + I('sparkles') + '<span>' + U.esc(tip) + '</span></div>' : '') +
+        '<ul class="gen-list">' + blocks.map((b, i) => {
+          const t = findTask(b.title);
+          return '<li><label class="check"><input type="checkbox" name="b' + i + '" checked><span><b>' + b.start + '–' + b.end + '</b> ' + U.esc(b.title) +
+            (t ? ' <span class="tag ok">задача</span>' : '') + '</span></label></li>';
+        }).join('') + '</ul><p class="muted small">Блоки с меткой «задача» можно будет запускать таймером.</p>',
+      submit: 'Добавить в план',
+      onSubmit(d, form) {
+        let n = 0;
+        blocks.forEach((b, i) => {
+          if (!form.querySelector('[name=b' + i + ']').checked) return;
+          const t = findTask(b.title);
+          S().plan.push({ id: U.uid(), day: key, start: b.start, end: b.end, title: b.title, taskId: t ? t.id : null, done: false });
+          n++;
+        });
+        Store.save(); App.render();
+        U.toast('Добавлено блоков: ' + n);
+      },
+    });
   }
 
   function findTask(title) {
@@ -156,6 +230,7 @@
       case 'edit': if (b) blockModal(b); break;
       case 'start': if (b && b.taskId) { S().settings.lastTask = b.taskId; Timer.start(b.taskId, S().settings.lastMode || 'watch'); } break;
       case 'stop': Timer.stop(); break;
+      case 'ai-plan': aiPlanModal(); break;
       case 'carry': {
         const key = U.dayKey(Date.now());
         const left = leftovers();

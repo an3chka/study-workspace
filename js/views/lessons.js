@@ -45,13 +45,17 @@
           (recent.length ? 'Недавние уроки (не повторяй): ' + recent.join('; ') + '.\n' : '') +
           (mistakes.length ? 'Недавние ошибки (можно вплести 1-2 задания на них): ' + mistakes.join('; ') + '.\n' : '') +
           (words.length ? 'Слова, которые ей трудно даются (используй 2-4 из них): ' + words.join(', ') + '.\n' : '')) +
-      'Составь урок из 8 заданий: 3 типа "choice", 2 типа "gap", 2 типа "order", 1 типа "translate". Задания — по возрастанию сложности, живые примеры из жизни студентки.\n' +
+      'Составь урок из 9 заданий: 3 типа "choice", 2 типа "gap", 1 типа "order", 1 типа "error", 1 типа "translate", 1 типа "open". Задания — по возрастанию сложности, живые примеры из жизни студентки.\n' +
+      'В "choice" делай ловушки: среди неверных вариантов — типичные ошибки русскоговорящих (калька с русского, лишний артикль, «I am agree» и т.п.), а в "explain" объясняй, в чём ловушка.\n' +
+      '"error" — предложение с ОДНОЙ ошибкой, которую надо найти и исправить. "open" — либо вопрос на рассуждение «почему так, а не иначе?» (kind: "why"), либо творческое задание: написать 2-3 своих предложения с темой урока (kind: "creative").\n' +
       'Верни JSON строго такого вида:\n' +
       '{"title": "название урока по-русски", "intro": "объяснение темы по-русски, 2-4 коротких предложения, с 1-2 примерами", "exercises": [\n' +
       ' {"type": "choice", "question": "вопрос или предложение с пропуском ___", "options": ["вариант1", "вариант2", "вариант3", "вариант4"], "answer": 0, "explain": "почему так, по-русски, 1 предложение"},\n' +
       ' {"type": "gap", "sentence": "предложение с одним пропуском ___", "answer": "правильное слово", "accept": ["допустимые варианты"], "hint": "подсказка по-русски", "explain": "почему, по-русски"},\n' +
       ' {"type": "order", "translation": "перевод на русский", "answer": "правильное предложение на изучаемом языке из 4-9 слов"},\n' +
-      ' {"type": "translate", "ru": "предложение по-русски", "answer": "эталонный перевод"}\n' +
+      ' {"type": "error", "sentence": "предложение с одной ошибкой", "answer": "исправленное предложение", "explain": "в чём была ошибка, по-русски"},\n' +
+      ' {"type": "translate", "ru": "предложение по-русски", "answer": "эталонный перевод"},\n' +
+      ' {"type": "open", "kind": "why" или "creative", "task": "задание по-русски", "sample": "пример хорошего ответа"}\n' +
       ']}';
   }
 
@@ -84,6 +88,14 @@
       if (e.type === 'translate') {
         if (!e.ru || !e.answer) return null;
         return { type: 'translate', ru: String(e.ru), answer: String(e.answer) };
+      }
+      if (e.type === 'error') {
+        if (!e.sentence || !e.answer || norm(e.sentence) === norm(e.answer)) return null;
+        return { type: 'error', sentence: String(e.sentence), answer: String(e.answer), explain: e.explain || '', topic: e.topic };
+      }
+      if (e.type === 'open') {
+        if (!e.task) return null;
+        return { type: 'open', kind: e.kind === 'why' ? 'why' : 'creative', task: String(e.task), sample: String(e.sample || ''), topic: e.topic };
       }
       return null;
     }).filter(Boolean);
@@ -182,6 +194,7 @@
   function rightText(e) {
     if (e.type === 'choice') return e.options[e.answer];
     if (e.type === 'gap') return e.sentence.replace(/_{2,}/, e.answer);
+    if (e.type === 'open') return e.sample || '';
     return e.answer;
   }
 
@@ -246,6 +259,25 @@
   }
 
   // Проверка перевода — через нейросеть.
+  // Свободный ответ (найди ошибку / почему / творческое) — проверяет нейросеть
+  async function checkOpen(btn, mine) {
+    const e = current();
+    if (e.type === 'error' && norm(mine) === norm(e.answer)) return answer(true, mine);
+    const what = e.type === 'error' ? 'Задание: найти и исправить ошибку в предложении "' + e.sentence + '". Правильный вариант: "' + e.answer + '".'
+      : e.kind === 'why' ? 'Вопрос на рассуждение: ' + e.task + (e.sample ? '\nПример хорошего ответа: ' + e.sample : '') + '\nОценивай, поняла ли она суть, а не формулировку.'
+        : 'Творческое задание: ' + e.task + '\nОценивай, выполнено ли задание и правильно ли использована тема; мелкие ошибки исправь, но засчитывай, если суть верна.';
+    const r = await AI.run(btn, () => AI.ask({
+      json: true, temperature: 0.3, system: SYSTEM,
+      prompt: 'Проверь ответ ученицы (уровень ' + (P().level || 'A2') + ').\n' + what + '\nОтвет ученицы: "' + mine + '"\n' +
+        'Верни JSON: {"correct": true/false, "feedback": "2-3 предложения по-русски: что хорошо и что улучшить", "better": "исправленный или улучшенный вариант её ответа"}',
+    }));
+    if (!r) {
+      if (e.type === 'error') return answer(false, mine, { feedback: 'Нейросеть недоступна — сравнила с правильным вариантом.' });
+      return answer(true, mine, { feedback: 'Нейросеть недоступна, поэтому засчитываю. Сравни свой ответ с примером ниже.', unknown: false });
+    }
+    answer(!!r.correct, mine, { feedback: r.feedback || '', better: r.better || '' });
+  }
+
   async function checkTranslate(btn, mine) {
     const e = current();
     const r = await AI.run(btn, () => AI.ask({
@@ -361,6 +393,13 @@
         '<div class="order-line">' + (picked.length ? picked.map((w, k) => '<button class="wchip on" data-l="unpick" data-k="' + k + '"' + (a ? ' disabled' : '') + '>' + U.esc(w.text) + '</button>').join('') : '<span class="muted small">нажимай на слова по порядку</span>') + '</div>' +
         '<div class="order-bank">' + e.words.map((w, k) => picked.some((p) => p.k === k) ? '<span class="wchip ghost">' + U.esc(w) + '</span>' : '<button class="wchip" data-l="pick" data-k="' + k + '"' + (a ? ' disabled' : '') + '>' + U.esc(w) + '</button>').join('') + '</div>' +
         (a ? '' : '<button class="btn primary" data-l="check-order"' + (picked.length === e.words.length ? '' : ' disabled') + '>Проверить</button>');
+    } else if (e.type === 'error' || e.type === 'open') {
+      const kind = e.type === 'error' ? 'Ловушка: найди и исправь ошибку' : e.kind === 'why' ? 'Подумай: почему?' : 'Творческое задание';
+      body = '<p class="ex-kind">' + kind + '</p><p class="ex-q">' + U.esc(e.type === 'error' ? e.sentence : e.task) + '</p>' +
+        (e.type === 'error' ? '<p class="muted small">Напиши всё предложение правильно.</p>' : '') +
+        '<form id="open-form" class="gap-form tr-form"><textarea name="ans" rows="' + (e.type === 'error' ? 2 : 4) + '" placeholder="' + (e.type === 'error' ? 'исправленное предложение' : e.kind === 'why' ? 'объясни своими словами (можно по-русски)' : 'твой текст') + '"' + (a ? ' disabled' : '') + '>' +
+        (a ? U.esc(a.mine) : (e.type === 'error' ? U.esc(e.sentence) : '')) + '</textarea>' +
+        (a ? '' : '<button class="btn primary" type="submit">Проверить</button>') + '</form>';
     } else {
       body = '<p class="ex-kind">Переведи</p><p class="ex-q">' + U.esc(e.ru) + '</p>' +
         '<form id="tr-form" class="gap-form tr-form"><textarea name="ans" rows="2" placeholder="твой перевод"' + (a ? ' disabled' : '') + '>' + (a ? U.esc(a.mine) : '') + '</textarea>' +
@@ -370,7 +409,7 @@
     if (a) {
       const right = rightText(e);
       fb = '<div class="feedback ' + (a.correct ? 'ok' : a.unknown ? 'skip' : 'bad') + '"><div class="fb-head">' + (a.correct ? I('check-circle') + ' Верно!' + (a.gain ? ' <span class="xp-pill">+' + a.gain + ' XP</span>' : '') + (game.combo >= 3 ? ' <span class="tag new">серия ' + game.combo + '</span>' : '') : a.unknown ? I('book') + ' Ничего страшного — разберём' : I('alert') + ' Не совсем') + '</div>' +
-        (!a.correct || e.type !== 'choice' ? '<p>Правильно: <b>' + U.esc(right) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
+        (e.type === 'open' ? (right ? '<p>Пример ответа: <i>' + U.esc(right) + '</i></p>' : '') : !a.correct || e.type !== 'choice' ? '<p>Правильно: <b>' + U.esc(right) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
         (a.better && !a.correct ? '<p>Твой вариант, исправленный: <i>' + U.esc(a.better) + '</i></p>' : '') +
         (a.feedback ? '<p>' + U.esc(a.feedback) + '</p>' : '') +
         (e.explain ? '<p class="muted">' + U.esc(e.explain) + '</p>' : '') +
@@ -381,7 +420,7 @@
     }
     const skip = !a ? '<button class="btn ghost small dontknow" data-l="dontknow">' + I('alert') + ' Не знаю — покажи ответ</button>' : '';
     el.innerHTML = '<div class="game">' + top + '<div class="card game-card">' + body + skip + '</div>' + fb + '</div>';
-    const inp = el.querySelector('#gap-form input:not([disabled]), #tr-form textarea:not([disabled])');
+    const inp = el.querySelector('#gap-form input:not([disabled]), #tr-form textarea:not([disabled]), #open-form textarea:not([disabled])');
     if (inp) inp.focus();
     const nb = el.querySelector('#next-btn');
     if (nb) nb.focus();
@@ -548,6 +587,12 @@
       const mine = e.target.ans.value.trim();
       if (!mine) return;
       checkTranslate(e.target.querySelector('button'), mine);
+    }
+    if (e.target.id === 'open-form') {
+      e.preventDefault();
+      const mine = e.target.ans.value.trim();
+      if (!mine) return;
+      checkOpen(e.target.querySelector('button'), mine);
     }
   });
 
