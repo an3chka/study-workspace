@@ -6,7 +6,7 @@
   const App = window.App = window.App || {};
   App.views = App.views || {};
 
-  const LEVEL_TXT = { A1: 'начальный', A2: 'элементарный', B1: 'средний', B2: 'выше среднего' };
+  const LEVEL_TXT = { A1: 'начальный', A2: 'элементарный', B1: 'средний', B2: 'выше среднего', C1: 'продвинутый' };
   let root = null;
 
   function S() { return Store.state; }
@@ -31,7 +31,7 @@
   function renderList(el) {
     const level = S().lessons.level;
     const d = done();
-    const groups = ['A1', 'A2', 'B1', 'B2'];
+    const groups = ['A1', 'A2', 'B1', 'B2', 'C1'];
     el.innerHTML =
       '<header class="page-head"><div><h1>Языки</h1><p class="muted">Справочник грамматики: коротко, с примерами и тренировкой</p></div></header>' + App.langTabs('theory') +
       (level ? '<p class="muted">Твой уровень: <b>' + level + '</b>. Начни с тем своего уровня и тех, где были ошибки в тесте.</p>' :
