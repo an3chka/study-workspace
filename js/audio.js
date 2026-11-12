@@ -754,6 +754,12 @@
       } catch (e) { /* ignore */ }
     },
 
+    // Звук обычных уведомлений (достижения, задания, уроки…) — своя настройка, можно выключить
+    notify() {
+      const k = Store.state.settings.notifySound || 'bell';
+      if (k !== 'none') Sound.chime(k);
+    },
+
     chimes: [
       ['marimba', 'Маримба'], ['bell', 'Колокольчик'], ['gong', 'Тихий гонг'],
       ['wood', 'Деревянный «тук-тук»'], ['birds', 'Птички'], ['none', 'Без звука'],

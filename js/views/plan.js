@@ -278,7 +278,7 @@
     b.done = e.target.checked;
     Store.save();
     const sum = App.planSummary(b.day);
-    if (b.done && sum.total && sum.done === sum.total) { U.toast('Весь план на день выполнен!'); if (window.Sound) Sound.chime(); }
+    if (b.done && sum.total && sum.done === sum.total) { U.toast('Весь план на день выполнен!'); if (window.Sound) Sound.notify(); }
     App.render();
   });
 

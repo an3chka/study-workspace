@@ -80,7 +80,7 @@
       h.done = true;
       h.doneAt = Date.now();
       U.toast('Цель «' + h.name + '» достигнута! Поздравляю!');
-      if (window.Sound) Sound.chime();
+      if (window.Sound) Sound.notify();
     }
   }
 

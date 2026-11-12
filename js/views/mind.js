@@ -415,7 +415,7 @@
           clearInterval(iv);
           if (ex.step >= e.steps.length - 1) { finishExercise((Date.now() - ex.started) / 1000); return; }
           ex.step++;
-          if (window.Sound) Sound.chime('wood');
+          if (window.Sound && S().settings.notifySound !== 'none') Sound.chime('wood');
           run();
         }
       }, 1000);

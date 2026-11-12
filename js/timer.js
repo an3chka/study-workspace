@@ -179,8 +179,9 @@
     alert(title, body) {
       if (window.Sound) Sound.chime(S().settings.chimeSound);
       U.toast(title + ' ' + body);
+      if (S().settings.pomoSystem === false) return;
       if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-        try { new Notification(title, { body, icon: 'icons/icon-192.png' }); } catch (e) { /* ignore */ }
+        try { new Notification(title, { body, icon: 'icons/icon-192.png', silent: S().settings.chimeSound === 'none' || S().settings.pomoSystemSilent }); } catch (e) { /* ignore */ }
       }
     },
   };

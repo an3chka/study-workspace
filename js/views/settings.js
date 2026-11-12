@@ -27,9 +27,19 @@
         '</div>' +
         '<p class="muted small">Длинный перерыв — после каждого 4-го помидора.</p>' +
         '<label class="check"><input type="checkbox" name="pomoAutoBreak"' + (st.pomoAutoBreak ? ' checked' : '') + '> Перерыв начинается сам после помидора</label>' +
-        '<label>Сигнал в конце помидора<span class="inline-row"><select name="chimeSound">' +
-          Sound.chimes.map(([v, n]) => '<option value="' + v + '"' + (st.chimeSound === v ? ' selected' : '') + '>' + n + '</option>').join('') +
-        '</select><button type="button" class="btn" data-s="test-chime">' + I('play') + ' Прослушать</button></span></label>' +
+        '<fieldset class="set-group"><legend>' + I('clock') + ' Pomodoro</legend>' +
+          '<label>Сигнал в конце помидора и перерыва<span class="inline-row"><select name="chimeSound">' +
+            Sound.chimes.map(([v, n]) => '<option value="' + v + '"' + (st.chimeSound === v ? ' selected' : '') + '>' + n + '</option>').join('') +
+          '</select><button type="button" class="btn" data-s="test-chime">' + I('play') + ' Прослушать</button></span></label>' +
+          '<label class="check"><input type="checkbox" name="pomoSystem"' + (st.pomoSystem !== false ? ' checked' : '') + '> Системное уведомление, если вкладка свёрнута</label>' +
+          '<label class="check"><input type="checkbox" name="pomoSystemSilent"' + (st.pomoSystemSilent ? ' checked' : '') + '> Системное уведомление — без звука</label>' +
+        '</fieldset>' +
+        '<fieldset class="set-group"><legend>' + I('sparkles') + ' Уведомления</legend>' +
+          '<label>Звук уведомлений (достижения, задания дня, уроки, план)<span class="inline-row"><select name="notifySound">' +
+            Sound.chimes.map(([v, n]) => '<option value="' + v + '"' + ((st.notifySound || 'bell') === v ? ' selected' : '') + '>' + n + '</option>').join('') +
+          '</select><button type="button" class="btn" data-s="test-notify">' + I('play') + ' Прослушать</button></span></label>' +
+          '<p class="muted small">«Без звука» — уведомления только всплывают на экране. Фоновая музыка от этого не зависит.</p>' +
+        '</fieldset>' +
         '<label class="check"><input type="checkbox" name="autoTimer"' + (st.autoTimer !== false ? ' checked' : '') + '> Автотаймер: время уроков, тестов и тренировок записывается само</label>' +
         '<label class="check"><input type="checkbox" name="autoTranslate"' + (st.autoTranslate ? ' checked' : '') + '> Автоперевод слов в «Чтении» (бесплатный сервис MyMemory, ему отправляется только слово)</label>' +
         '<label>Новых карточек в день (на колоду)<input type="number" name="newCardsPerDay" min="1" max="200" value="' + st.newCardsPerDay + '"></label>' +
@@ -182,7 +192,7 @@
       } else st[t.name] = t.value;
       Store.save();
       if (t.name === 'theme') App.applyTheme();
-      if (t.name === 'chimeSound') Sound.chime(t.value);
+      if (t.name === 'chimeSound' || t.name === 'notifySound') Sound.chime(t.value);
       U.toast('Сохранено');
       return;
     }
@@ -261,6 +271,10 @@
     }
     if (b.dataset.s === 'test-chime') {
       Sound.chime(root.querySelector('[name=chimeSound]').value);
+    }
+    if (b.dataset.s === 'test-notify') {
+      const v = root.querySelector('[name=notifySound]').value;
+      if (v === 'none') U.toast('Так будет выглядеть уведомление без звука'); else Sound.chime(v);
     }
     if (b.dataset.s === 'reset') {
       if (await App.confirm('Стереть ВСЕ данные: задачи, время, карточки, цели? Это нельзя отменить. Сначала сделай экспорт, если данные нужны.', 'Стереть всё')) {

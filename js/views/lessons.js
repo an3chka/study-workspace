@@ -266,7 +266,7 @@
     }
     S().practice.push({ id: U.uid(), ts: Date.now(), type: 'lesson', sec: Math.round((Date.now() - game.started) / 1000) });
     Store.save();
-    if (window.Sound) Sound.chime('marimba');
+    if (window.Sound) Sound.notify();
   }
 
   // Совет по уровню на основе последних уроков того же уровня.

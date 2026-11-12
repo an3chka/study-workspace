@@ -142,7 +142,7 @@
       }
     });
     const lvl = App.playerLevel().lvl;
-    if (st.game.lastLevel && lvl > st.game.lastLevel) { U.toast('Новый уровень: ' + lvl + '! ' + App.playerLevel().title); if (window.Sound) Sound.chime('marimba'); }
+    if (st.game.lastLevel && lvl > st.game.lastLevel) { U.toast('Новый уровень: ' + lvl + '! ' + App.playerLevel().title); if (window.Sound) Sound.notify(); }
     if (st.game.lastLevel !== lvl) { st.game.lastLevel = lvl; changed = true; }
     if (changed) Store.saveSoon();
     return { facts, quests, rec };

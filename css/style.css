@@ -1077,3 +1077,6 @@ a.quest[href]:hover { border-color: var(--accent); }
 .vt-row span:first-child { display: flex; align-items: center; gap: 4px; }
 .vt-head { position: sticky; top: 0; background: var(--surface-2); font-weight: 800; font-size: .8rem; text-transform: uppercase; color: var(--muted); z-index: 1; }
 @media (max-width: 560px) { .vt-row { grid-template-columns: 1.2fr 1fr 1fr; } .vt-row span:last-child { grid-column: 1 / -1; font-size: .8rem; padding-left: 32px; } }
+.set-group { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px 12px; margin: 4px 0; display: flex; flex-direction: column; gap: 8px; }
+.set-group legend { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: .9rem; padding: 0 6px; color: var(--text); }
+.set-group legend .ic { width: 16px; height: 16px; color: var(--accent); }
