@@ -168,7 +168,7 @@
             AI.status = 'пробую ' + model + (ep.kind === 'vertex' ? ' (Vertex)' : '') + '…';
             try {
               data = await request(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body) },
-                o.json ? 60000 : 12000);
+                o.json ? 90000 : 30000);
               if (c.endpoint !== ep.kind || (!c.model && c.autoModel !== model)) { c.endpoint = ep.kind; if (!c.model) c.autoModel = model; Store.saveSoon(); }
               break outer;
             } catch (e) {

@@ -104,7 +104,7 @@
         (AI.pool(c.provider).length > 1 ? '<p class="muted small">Ключей: ' + AI.pool(c.provider).length + '. Если у одного закончится лимит, кабинет сам возьмёт следующий. Ключи с одного аккаунта делят общий лимит.</p>' : '') +
         backupHTML(c) +
         (AI.keyProblem() ? '<div class="ai-status bad">' + I('alert') + '<span>' + U.esc(AI.keyProblem()) + '</span></div>' : '') +
-        '<label>Модель<span class="inline-row"><select name="model"><option value="">' + U.esc(AI.model()) + ' (по умолчанию)</option>' +
+        '<label>Модель<span class="inline-row"><select name="model"><option value="">' + (c.autoModel ? 'Автовыбор — сейчас работает ' + U.esc(c.autoModel) : 'Автовыбор (кабинет подберёт сам)') + '</option>' +
           (c.models || []).map((m) => '<option value="' + U.esc(m.id) + '"' + (m.id === c.model ? ' selected' : '') + '>' + U.esc(m.label) + '</option>').join('') +
         '</select><button type="button" class="btn" data-s="ai-models">Загрузить список</button></span></label>' +
         '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
