@@ -206,7 +206,8 @@
     const el = document.getElementById('sidebar-streak');
     const s = Stats.streak();
     el.innerHTML = '<div class="streak-mini' + (s.todayDone ? ' done' : '') + '">' + I('flame') + ' <b>' + s.current + '</b> ' +
-      U.plural(s.current, ['день', 'дня', 'дней']) + ' подряд</div>';
+      U.plural(s.current, ['день', 'дня', 'дней']) + ' подряд</div>' +
+      (App.playerLevel ? '<div class="level-mini">' + I('star') + ' уровень <b>' + App.playerLevel().lvl + '</b> · ' + U.esc(App.playerLevel().title) + '</div>' : '');
   }
 
   // ---------- Напоминание о резервной копии ----------
@@ -235,7 +236,13 @@
     if (Sound.anyPlaying()) { e.preventDefault(); e.returnValue = ''; }
   });
 
-  Store.onChange(() => { App.applyTheme(); });
+  let gameTimer = null;
+  Store.onChange(() => {
+    App.applyTheme();
+    // Проверяем задания и достижения (с небольшой задержкой, чтобы не на каждое сохранение)
+    clearTimeout(gameTimer);
+    gameTimer = setTimeout(() => { if (App.checkGame) { App.checkGame(); renderSidebarStreak(); } }, 800);
+  });
 
   // ---------- Запуск ----------
   // Иконки в статичной разметке (меню, плеер)

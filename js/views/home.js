@@ -52,6 +52,7 @@
         '<section class="card today-card" id="today-card">' + todayCard(todayList) + '</section>' +
         '<section class="card timer-card" id="timer-card">' + timerCard(mode) + '</section>' +
       '</div>' +
+      App.gameCardHTML() +
       (function () {
         const ins = App.insightsToday();
         return ins.length ? '<section class="card assistant"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Помощник</h2><a class="small" href="#/stats">обзор недели ›</a></div>' + App.renderInsights(ins, 4) + '</section>' : '';

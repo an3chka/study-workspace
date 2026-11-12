@@ -165,7 +165,8 @@
 
       (filter === 'all' ? '<section class="card assistant"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' Помощник: обзор последних 7 дней</h2></div>' + App.renderInsights(App.insightsWeek()) + '</section>' : '') +
 
-      '<section class="card"><div class="card-head"><h2>Календарь активности</h2><span class="muted small">последние 18 недель</span></div>' + heatmap(allByDay, goal) + '</section>';
+      '<section class="card"><div class="card-head"><h2>Календарь активности</h2><span class="muted small">последние 18 недель</span></div>' + heatmap(allByDay, goal) + '</section>' +
+      (filter === 'all' && App.achievementsHTML ? App.achievementsHTML() : '');
   }
 
   function kpi(label, value, sub, cls) {

@@ -934,3 +934,27 @@ textarea.secret.shown { -webkit-text-security: none; }
 .done-list li:last-child { border-bottom: 0; }
 .dl-title { flex: 1; min-width: 140px; font-weight: 600; }
 .finish-text { justify-content: center; margin-top: 8px; }
+
+/* ===== Игра ===== */
+.game-card-home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 18px; align-items: start; }
+.gh-top { display: flex; gap: 14px; align-items: center; }
+.quests { display: flex; flex-direction: column; gap: 6px; }
+.q-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.quest { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); color: var(--text); text-decoration: none; font-size: .93rem; border: 1px solid transparent; }
+a.quest[href]:hover { border-color: var(--accent); }
+.quest.ok { background: var(--good-soft); }
+.quest.ok .q-text { text-decoration: line-through; color: var(--muted); }
+.q-check { width: 22px; height: 22px; flex: none; border-radius: 7px; border: 2px solid var(--border); display: grid; place-items: center; }
+.quest.ok .q-check { background: var(--good); border-color: var(--good); color: #fff; }
+.q-check .ic { width: 14px; height: 14px; }
+.q-text { flex: 1; }
+.level-mini { display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); margin-top: 6px; }
+.level-mini .ic { width: 16px; height: 16px; color: var(--accent); }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.ach { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 12px 8px; border-radius: 14px; border: 1px dashed var(--border); opacity: .55; }
+.ach.got { opacity: 1; border-style: solid; background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); }
+.ach-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.ach.got .ach-icon { background: var(--grad); color: #fff; }
+.ach small { color: var(--muted); font-size: .75rem; }
+.xp-details { margin-top: 10px; }
+@media (max-width: 760px) { .game-card-home { grid-template-columns: 1fr; } }

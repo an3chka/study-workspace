@@ -245,6 +245,7 @@
       d.newLog.n++;
     }
     grade(card, g);
+    if (App.countReview) App.countReview();
     if (g === 0) {
       study.again++;
       study.queue.splice(Math.min(study.queue.length, 3), 0, id); // вернётся через пару карточек
