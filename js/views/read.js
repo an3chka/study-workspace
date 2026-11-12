@@ -14,6 +14,31 @@
 
   function S() { return Store.state; }
   // Текст: свой — из данных, библиотечный — из встроенной библиотеки (если его не правили)
+  // ---------- Слушать текст (озвучка браузером) ----------
+  const listen = { playing: false, idx: 0, rate: 0.9, hidden: false, textId: null };
+
+  function stopListen() {
+    listen.playing = false;
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    document.querySelectorAll('#reader p.reading').forEach((p) => p.classList.remove('reading'));
+  }
+
+  function playFrom(idx) {
+    const t = openId && text(openId);
+    const ps = document.querySelectorAll('#reader p');
+    if (!t || !ps.length || !('speechSynthesis' in window)) { if (!('speechSynthesis' in window)) U.toast('Браузер не умеет читать вслух'); return; }
+    if (idx >= ps.length) { stopListen(); listen.idx = 0; App.render(); if (listen.hidden) U.toast('Дослушала! Теперь ответь на вопросы на понимание внизу.'); return; }
+    listen.idx = idx;
+    ps.forEach((p, i) => p.classList.toggle('reading', i === idx));
+    if (!listen.hidden) ps[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const u = new SpeechSynthesisUtterance(ps[idx].textContent);
+    u.lang = t.lang || 'en-US'; u.rate = listen.rate;
+    const v = App.bestVoice && App.bestVoice(u.lang);
+    if (v) u.voice = v;
+    u.onend = () => { if (listen.playing && openId === t.id) playFrom(idx + 1); };
+    speechSynthesis.speak(u);
+  }
+
   function bodyOf(t) {
     if (t.body) return t.body;
     const x = t.libId && (window.LIBRARY || []).find((l) => l.id === t.libId);
@@ -205,8 +230,13 @@
       '<div class="card reader-bar">' +
         '<label class="check"><input type="checkbox" data-r="toggle-unknown"' + (showUnknown ? ' checked' : '') + '> Подсвечивать неотмеченные слова</label>' +
         '<div class="reader-legend small"><span class="w learning">учу</span><span class="w learned">выучено</span>' + (showUnknown ? '<span class="w unknown">не отмечено</span>' : '') + '</div>' +
+        '<div class="listen-bar">' +
+          '<button class="btn small' + (listen.playing ? ' primary' : '') + '" data-r="listen">' + I(listen.playing ? 'pause' : 'volume') + (listen.playing ? ' Пауза' : ' Слушать текст') + '</button>' +
+          '<select data-r="rate" aria-label="Скорость">' + [[0.7, 'медленно'], [0.9, 'обычно'], [1.1, 'быстрее']].map(([v, n]) => '<option value="' + v + '"' + (listen.rate === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>' +
+          '<label class="check small"><input type="checkbox" data-r="hide-text"' + (listen.hidden ? ' checked' : '') + '> Аудирование: скрыть текст</label>' +
+        '</div>' +
       '</div>' +
-      '<article class="card reader' + (showUnknown ? ' show-unknown' : '') + '" id="reader" lang="' + U.esc((t.lang || '').split('-')[0]) + '">' + html + '</article>' +
+      '<article class="card reader' + (showUnknown ? ' show-unknown' : '') + (listen.hidden ? ' hidden-text' : '') + '" id="reader" lang="' + U.esc((t.lang || '').split('-')[0]) + '">' + html + '</article>' +
       '<div class="reader-foot">' +
         '<p class="muted small">Нажми на слово, чтобы перевести и добавить в карточки. Можно выделить несколько слов — добавится фраза.</p>' +
         (s.unknown ? '<button class="btn" data-r="all-known">' + I('check') + ' Я знаю все неотмеченные слова (' + s.unknown + ')</button>' : '') +
@@ -621,11 +651,15 @@
       case 'new': textModal(); break;
       case 'sample': addSample(); break;
       case 'lib-open': openLibrary(b.dataset.id); break;
+      case 'listen':
+        if (listen.playing) { listen.playing = false; speechSynthesis.cancel(); App.render(); }
+        else { if (listen.textId !== openId) { listen.idx = 0; listen.textId = openId; } listen.playing = true; App.render(); playFrom(listen.idx); }
+        break;
       case 'mark-read': if (t) { markRead(t); openId = null; App.render(); window.scrollTo(0, 0); } break;
       case 'unread': { const x = text(b.dataset.id); if (x) { x.read = false; x.readAt = null; Store.save(); App.render(); } break; }
       case 'quiz': if (t) startQuiz(b, t); break;
       case 'open': openId = b.dataset.id; App.render(); break;
-      case 'back': openId = null; App.render(); break;
+      case 'back': stopListen(); openId = null; App.render(); break;
       case 'edit': textModal(text(b.dataset.id)); break;
       case 'all-known': {
         if (!t) break;
@@ -641,6 +675,8 @@
   });
 
   document.addEventListener('change', (e) => {
+    if (root && root.contains(e.target) && e.target.dataset.r === 'rate') { listen.rate = Number(e.target.value); return; }
+    if (root && root.contains(e.target) && e.target.dataset.r === 'hide-text') { listen.hidden = e.target.checked; const r = root.querySelector('#reader'); if (r) r.classList.toggle('hidden-text', listen.hidden); return; }
     if (!root || !root.contains(e.target) || e.target.dataset.r !== 'toggle-unknown') return;
     S().settings.readHighlightUnknown = e.target.checked;
     Store.save(); App.render();
@@ -651,7 +687,7 @@
   App.views.read = {
     render,
     group: 'cards',
-    leave() { root = null; closePop(); },
+    leave() { root = null; closePop(); stopListen(); },
     key(e) { if (e.key === 'Escape' && pop) { closePop(); return true; } },
   };
 })();

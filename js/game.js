@@ -33,7 +33,8 @@
       mood: st.mood.filter((m) => m.day === key).length,
       planDone: plan.filter((b) => b.done).length,
       planTotal: plan.length,
-      breath: st.practice.filter((p) => U.dayKey(p.ts) === key && ['box', '478', 'calm', 'ground', 'body'].includes(p.type)).length,
+      // любое упражнение для себя (дыхание, дневник, самопознание…), кроме уроков
+      breath: st.practice.filter((p) => U.dayKey(p.ts) === key && p.type !== 'lesson').length,
       journal: dayFilter(st.journal, key).length,
       read: st.texts.filter((t) => t.readAt && U.dayKey(t.readAt) === key).length,
       hobby: st.hobbies.reduce((n, h) => n + h.log.filter((l) => U.dayKey(l.ts) === key).length + (h.steps || []).filter((s) => s.doneAt && U.dayKey(s.doneAt) === key).length, 0),
@@ -43,13 +44,13 @@
 
   const QUESTS = [
     { id: 'focus25', text: 'Позанимайся с таймером 25 минут', done: (f) => f.minutes >= 25, prog: (f) => Math.min(25, Math.floor(f.minutes)) + '/25 мин' },
-    { id: 'goal', text: 'Выполни дневную цель', done: (f) => f.goalMet, need: () => Stats.goalSec() > 0 },
+    { id: 'goal', text: 'Набери дневную цель с таймером', done: (f) => f.goalMet, need: () => Stats.goalSec() > 0, prog: (f) => Math.floor(f.minutes) + '/' + Math.round(Stats.goalSec() / 60) + ' мин', href: '#/' },
     { id: 'cards10', text: 'Повтори 10 карточек', done: (f) => f.reviews >= 10, prog: (f) => Math.min(10, f.reviews) + '/10', need: () => S().decks.length > 0, href: '#/cards' },
     { id: 'lesson', text: 'Пройди урок, тренировку или тест', done: (f) => f.lessons >= 1, href: '#/lessons' },
     { id: 'mood', text: 'Отметь самочувствие', done: (f) => f.mood >= 1, href: '#/mind' },
     { id: 'mood2', text: 'Отметь самочувствие дважды (утром и вечером)', done: (f) => f.mood >= 2, prog: (f) => Math.min(2, f.mood) + '/2', href: '#/mind' },
     { id: 'plan2', text: 'Выполни 2 блока плана', done: (f) => f.planDone >= 2, prog: (f) => Math.min(2, f.planDone) + '/2', href: '#/plan' },
-    { id: 'breath', text: 'Сделай упражнение для себя', done: (f) => f.breath >= 1, href: '#/mind' },
+    { id: 'breath', text: 'Сделай любое упражнение для себя', done: (f) => f.breath >= 1, href: '#/mind' },
     { id: 'read', text: 'Дочитай текст на английском', done: (f) => f.read >= 1, href: '#/read' },
     { id: 'hobby', text: 'Сделай шаг в хобби', done: (f) => f.hobby >= 1, need: () => S().hobbies.some((h) => !h.done), href: '#/hobby' },
     { id: 'reflect', text: 'Ответь на вопрос дня', done: (f) => f.reflection >= 1, href: '#/mind' },
@@ -158,10 +159,12 @@
       '<div class="progress"><span style="width:' + (L.cur / L.need * 100) + '%"></span></div>' +
       '<span class="muted small">всего ' + L.xp + ' XP · <a href="#/stats">достижения ›</a></span></div></div>' +
       '<div class="quests"><div class="q-head"><b>Задания дня</b><span class="muted small">' + doneCount + ' из 3 · +20 XP за каждое</span></div>' +
+      '<p class="muted small q-note">Отмечаются сами, когда выполнишь. Нажми на задание — откроется нужный раздел.</p>' +
       quests.map((q) => {
         const ok = rec.done.includes(q.id);
+        const text = q.id === 'goal' ? 'Набери ' + Math.round(Stats.goalSec() / 60) + ' мин с таймером (дневная цель)' : q.text;
         return '<a class="quest' + (ok ? ' ok' : '') + '"' + (q.href && !ok ? ' href="' + q.href + '"' : '') + '><span class="q-check">' + (ok ? I('check') : '') + '</span>' +
-          '<span class="q-text">' + U.esc(q.text) + '</span>' + (q.prog && !ok ? '<span class="muted small">' + q.prog(facts) + '</span>' : '') + '</a>';
+          '<span class="q-text">' + U.esc(text) + '</span>' + (q.prog && !ok ? '<span class="muted small">' + q.prog(facts) + '</span>' : '') + '</a>';
       }).join('') + '</div></section>';
   };
 

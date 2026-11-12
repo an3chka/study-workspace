@@ -1048,3 +1048,26 @@ a.quest[href]:hover { border-color: var(--accent); }
 .usage { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
 .usage-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; font-size: .9rem; }
 .usage p { margin: 0; }
+.q-note { margin: -2px 0 2px; }
+.ex-group { display: flex; align-items: center; gap: 6px; margin: 10px 0 6px; font-size: .85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.ex-group .ic { width: 14px; height: 14px; color: var(--accent); }
+.ex-row { display: flex; align-items: stretch; gap: 4px; }
+.ex-row .ex-item { flex: 1; }
+.fav .ic { width: 18px; height: 18px; color: var(--muted); }
+.fav.on .ic { color: var(--accent); fill: var(--accent); }
+.wheel-row { flex-direction: row; align-items: center; gap: 10px; color: var(--text); }
+.wheel-row span { width: 150px; flex: none; font-size: .9rem; }
+.wheel-row input { flex: 1; }
+.wheel-row b { width: 22px; text-align: right; }
+.listen-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.listen-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; }
+.listen-bar select { width: auto; padding: 4px 8px; }
+.reader p.reading { background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); border-radius: 10px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-soft) 70%, transparent); }
+.reader.hidden-text p { filter: blur(7px); user-select: none; }
+.reader.hidden-text p.reading { filter: blur(7px); }
+.passage { padding: 12px 14px; border-radius: 14px; background: var(--surface-2); }
+.passage-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.passage p, .passage-mini p { margin: 0; line-height: 1.65; }
+.passage-mini { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
+.passage-mini summary { cursor: pointer; }
+.lesson-intro p { margin: 0 0 6px; }

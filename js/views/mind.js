@@ -22,6 +22,26 @@
       ['hand', 'Сожми и разожми кулаки, покрути кистями', 20], ['eye', 'Посмотри вдаль, дай глазам отдохнуть', 20], ['coffee', 'Выпей воды', 20]] },
     { id: 'gratitude', icon: 'sun', name: 'Три хороших вещи', desc: 'запиши 3 вещи, за которые благодарна сегодня', kind: 'journal' },
     { id: 'thoughts', icon: 'note', name: 'Разгрузка мыслей', desc: 'выгрузи то, что крутится в голове, и найди один маленький шаг', kind: 'journal' },
+    { id: 'wheel', icon: 'target', name: 'Колесо баланса', desc: 'оцени 8 сфер жизни от 1 до 10 — увидишь, где проседает', kind: 'wheel', group: 'self' },
+    { id: 'values', icon: 'star', name: 'Мои ценности', desc: 'выбери 5 главных ценностей и подумай, как они видны в твоих днях', kind: 'values', group: 'self' },
+    { id: 'strengths', icon: 'trophy', name: 'Мои сильные стороны', desc: '3 сильные стороны и случаи, когда они помогли', kind: 'prompts', group: 'self', prompts: [
+      ['Сильная сторона №1 и когда она мне помогла', 'например: упорство — дотянула курсовую, хотя хотелось бросить'],
+      ['Сильная сторона №2 и пример', ''], ['Сильная сторона №3 и пример', ''], ['Как я могу использовать их на этой неделе?', '']] },
+    { id: 'energy', icon: 'bolt', name: 'Что наполняет и что опустошает', desc: 'два списка — чтобы осознанно добавлять одно и убирать другое', kind: 'prompts', group: 'self', prompts: [
+      ['Что меня наполняет энергией?', 'люди, занятия, места, мелочи'], ['Что меня опустошает?', ''], ['Одно «наполняющее» дело, которое добавлю на этой неделе', ''], ['Одно «опустошающее», которое попробую сократить', '']] },
+    { id: 'ideal-day', icon: 'sun', name: 'Мой идеальный день', desc: 'опиши реалистичный идеальный день — и найди, что можно взять уже сейчас', kind: 'prompts', group: 'self', prompts: [
+      ['Опиши свой идеальный, но реалистичный день: от утра до вечера', ''], ['Что из этого уже есть в моей жизни?', ''], ['Какой маленький кусочек этого дня я могу добавить завтра?', '']] },
+    { id: 'future-letter', icon: 'pen', name: 'Письмо себе в будущее', desc: 'напиши себе через год: что пожелаешь, чего ждёшь, что важно помнить', kind: 'prompts', group: 'self', prompts: [
+      ['Дорогая я через год…', 'что ты хочешь себе сказать?']] },
+    { id: 'critic', icon: 'heart', name: 'Внутренний критик → друг', desc: 'перепиши самокритичную мысль так, как сказала бы лучшая подруга', kind: 'prompts', group: 'self', prompts: [
+      ['Что говорит мой внутренний критик?', 'например: «я опять ничего не успела, я ленивая»'], ['Какие факты против этой мысли?', ''], ['Что сказала бы мне лучшая подруга?', ''], ['Более добрая и честная версия этой мысли', '']] },
+    { id: 'bodyscan', icon: 'activity', name: 'Сканирование тела', desc: '3 минуты: мягко пройтись вниманием от макушки до стоп', kind: 'timed', steps: [
+      ['eye', 'Закрой глаза. Сделай три медленных вдоха и выдоха', 25], ['heart', 'Почувствуй макушку, лоб, челюсть. Расслабь их', 25], ['activity', 'Плечи и руки: отпусти напряжение, почувствуй тяжесть', 25],
+      ['wind', 'Грудь и живот: просто наблюдай, как ты дышишь', 25], ['anchor', 'Спина и поясница: где есть напряжение? Подыши туда', 25], ['leaf', 'Ноги и стопы: почувствуй опору под собой', 25],
+      ['sun', 'Почувствуй тело целиком. Медленно открой глаза', 20]] },
+    { id: 'pmr', icon: 'hand', name: 'Напряги и отпусти', desc: '2 минуты мышечного расслабления: напрягаем и отпускаем по очереди', kind: 'timed', steps: [
+      ['hand', 'Сожми кулаки изо всех сил на 5 секунд… и отпусти', 20], ['activity', 'Подними плечи к ушам, задержи… и опусти', 20], ['eye', 'Зажмурься и сморщи лицо… и расслабь', 20],
+      ['heart', 'Напряги живот… и отпусти', 20], ['leaf', 'Потяни носки на себя, напряги ноги… и отпусти', 20], ['sun', 'Почувствуй разницу: тело стало мягче', 20]] },
   ];
 
   let root = null;
@@ -121,9 +141,7 @@
       '</section>' +
 
       '<section class="card"><div class="card-head"><h2>Упражнения</h2>' + (practicedToday ? '<span class="tag ok">сегодня: ' + practicedToday + '</span>' : '') + '</div>' +
-        '<div class="ex-list">' + EXERCISES.map((e) =>
-          '<button class="ex-item" data-m="ex" data-id="' + e.id + '"><span class="ex-icon">' + I(e.icon) + '</span><span><b>' + e.name + '</b><small>' + e.desc + '</small></span></button>').join('') +
-        '</div></section>' +
+        exListHTML() + '</section>' +
       '</div>' +
 
       '<section class="card"><div class="card-head"><h2>Последние 30 дней</h2>' +
@@ -140,7 +158,7 @@
       historyHTML(today) +
 
       (journal.length ? '<section class="card"><h2>Дневник</h2><ul class="journal">' + journal.map((j) =>
-        '<li><div class="j-head"><span>' + (j.type === 'gratitude' ? I('sun') + ' Три хороших вещи' : I('note') + ' Разгрузка мыслей') + '</span><span class="muted small">' + U.dateLabel(j.ts) + '</span>' +
+        '<li><div class="j-head"><span>' + (function () { const d = EXERCISES.find((x) => x.id === j.type); return I(d ? d.icon : 'note') + ' ' + U.esc(j.title || (d ? d.name : 'Запись')); })() + '</span><span class="muted small">' + U.dateLabel(j.ts) + '</span>' +
         '<button class="icon-btn small" data-m="del-journal" data-id="' + j.id + '" aria-label="Удалить запись">' + I('x') + '</button></div>' +
         '<div class="j-text">' + U.esc(j.text).replace(/\n/g, '<br>') + '</div></li>').join('') + '</ul></section>' : '') +
 
@@ -264,6 +282,22 @@
     });
   }
 
+  // Список упражнений: любимые (с сердечком) — первыми, потом «для спокойствия» и «познать себя»
+  function exListHTML() {
+    const fav = S().favEx || [];
+    const card = (e) => '<div class="ex-row"><button class="ex-item" data-m="ex" data-id="' + e.id + '"><span class="ex-icon">' + I(e.icon) + '</span><span><b>' + e.name + '</b><small>' + e.desc + '</small></span></button>' +
+      '<button class="icon-btn fav' + (fav.includes(e.id) ? ' on' : '') + '" data-m="fav" data-id="' + e.id + '" aria-label="' + (fav.includes(e.id) ? 'Убрать из любимых' : 'В любимые') + '" title="' + (fav.includes(e.id) ? 'Убрать из любимых' : 'В любимые') + '">' + I('heart') + '</button></div>';
+    const favs = fav.map((id) => EXERCISES.find((e) => e.id === id)).filter(Boolean);
+    const rest = EXERCISES.filter((e) => !fav.includes(e.id));
+    return (favs.length ? '<h3 class="ex-group">' + I('heart') + ' Любимые</h3><div class="ex-list">' + favs.map(card).join('') + '</div>' : '') +
+      '<h3 class="ex-group">Спокойствие и тело</h3><div class="ex-list">' + rest.filter((e) => e.group !== 'self').map(card).join('') + '</div>' +
+      '<h3 class="ex-group">Познать себя</h3><div class="ex-list">' + rest.filter((e) => e.group === 'self').map(card).join('') + '</div>';
+  }
+
+  const VALUES = ['семья', 'дружба', 'любовь', 'здоровье', 'свобода', 'знания', 'развитие', 'творчество', 'красота', 'честность', 'доброта', 'спокойствие',
+    'приключения', 'стабильность', 'карьера', 'деньги', 'признание', 'независимость', 'юмор', 'природа', 'вера', 'справедливость', 'помощь людям', 'путешествия'];
+  const AREAS = ['Учёба / работа', 'Здоровье и тело', 'Отдых', 'Друзья', 'Семья', 'Любовь', 'Деньги', 'Хобби и творчество'];
+
   function scale(name, label, items) {
     return '<fieldset class="scale"><legend>' + label + '</legend><div class="scale-row">' + items.map(([v, face, title]) =>
       '<label title="' + U.esc(title) + '"><input type="radio" name="' + name + '" value="' + v + '"' + (v === 3 ? ' checked' : '') + '><span>' + face + '</span></label>').join('') +
@@ -290,6 +324,21 @@
         '<div class="row-btns">' + (ex.step > 0 ? '<button class="btn" data-m="step-prev">‹ Назад</button>' : '') +
         (e.kind === 'timed' && !ex.running ? '<button class="btn primary big" data-m="timed-start">' + I('play') + ' Начать</button>' :
           '<button class="btn primary big" data-m="step-next">' + (ex.step === e.steps.length - 1 ? 'Готово ' + I('check') : 'Дальше ' + I('chevron-right')) + '</button>') + '</div>';
+    } else if (e.kind === 'prompts') {
+      body = '<form id="journal-form" class="journal-form">' + e.prompts.map(([q, ph], i) =>
+        '<label>' + U.esc(q) + '<textarea name="p' + i + '" rows="' + (e.prompts.length === 1 ? 8 : 3) + '" maxlength="2000" placeholder="' + U.esc(ph) + '"' + (i === 0 ? ' required' : '') + '></textarea></label>').join('') +
+        '<button class="btn primary">Сохранить</button></form>';
+    } else if (e.kind === 'wheel') {
+      const last = (S().journal.filter((j) => j.type === 'wheel').slice(-1)[0] || {}).scores || {};
+      body = '<form id="journal-form" class="journal-form wheel-form"><p class="muted small">1 — совсем плохо, 10 — лучше не бывает. Не думай долго — первое ощущение.</p>' +
+        AREAS.map((a, i) => '<label class="wheel-row"><span>' + a + '</span><input type="range" name="w' + i + '" min="1" max="10" value="' + (last[a] || 5) + '" oninput="this.nextElementSibling.textContent=this.value"><b>' + (last[a] || 5) + '</b></label>').join('') +
+        '<label>Какая сфера сейчас просит внимания и что я могу для неё сделать?<textarea name="note" rows="2" maxlength="600"></textarea></label>' +
+        '<button class="btn primary">Сохранить</button></form>';
+    } else if (e.kind === 'values') {
+      body = '<form id="journal-form" class="journal-form"><p class="muted small">Выбери 5 ценностей, которые для тебя важнее всего.</p>' +
+        '<div class="tags-pick">' + VALUES.map((v) => '<label class="chip-check"><input type="checkbox" name="v" value="' + v + '"><span>' + v + '</span></label>').join('') + '</div>' +
+        '<label>Как эти ценности видны в моих обычных днях? А где я живу против них?<textarea name="note" rows="3" maxlength="1500"></textarea></label>' +
+        '<button class="btn primary">Сохранить</button></form>';
     } else if (e.id === 'gratitude') {
       body = '<form id="journal-form" class="journal-form"><p class="muted">Даже мелочи считаются: вкусный кофе, солнце, сообщение от друга.</p>' +
         [1, 2, 3].map((i) => '<input name="g' + i + '" maxlength="200" placeholder="' + i + '. Я благодарна за…" ' + (i === 1 ? 'required' : '') + '>').join('') +
@@ -385,6 +434,13 @@
       case 'ex': ex = { def: EXERCISES.find((x) => x.id === b.dataset.id), step: 0, started: Date.now() }; App.render(); window.scrollTo(0, 0); break;
       case 'ex-close': stopEx(); ex = null; App.render(); break;
       case 'support': supportOpen = true; App.render(); window.scrollTo(0, 0); break;
+      case 'fav': {
+        const st = S(); st.favEx = st.favEx || [];
+        const id = b.dataset.id;
+        st.favEx = st.favEx.includes(id) ? st.favEx.filter((x) => x !== id) : st.favEx.concat(id);
+        Store.save(); App.render();
+        break;
+      }
       case 'support-close': supportOpen = false; App.render(); break;
       case 'q-next': qShift++; App.render(); break;
       case 'del-why': {
@@ -462,9 +518,21 @@
       e.preventDefault();
       const d = U.formData(e.target);
       let text;
+      let extra = {};
       if (ex.def.id === 'gratitude') text = [d.g1, d.g2, d.g3].filter(Boolean).map((x, i) => (i + 1) + '. ' + x).join('\n');
+      else if (ex.def.kind === 'prompts') text = ex.def.prompts.map(([q], i) => d['p' + i] ? (ex.def.prompts.length > 1 ? q + ':\n' : '') + d['p' + i] : '').filter(Boolean).join('\n\n');
+      else if (ex.def.kind === 'wheel') {
+        const scores = {};
+        AREAS.forEach((a, i) => { scores[a] = Number(new FormData(e.target).get('w' + i)); });
+        extra = { scores };
+        text = AREAS.map((a) => a + ': ' + scores[a]).join(' · ') + (d.note ? '\n\n' + d.note : '');
+      } else if (ex.def.kind === 'values') {
+        const vals = new FormData(e.target).getAll('v');
+        if (!vals.length) { U.toast('Выбери хотя бы одну ценность'); return; }
+        text = 'Мои ценности: ' + vals.join(', ') + (d.note ? '\n\n' + d.note : '');
+      }
       else text = d.worry + (d.control ? '\n\nЗависит от меня: ' + d.control : '') + (d.step ? '\nМаленький шаг: ' + d.step : '');
-      S().journal.push({ id: U.uid(), ts: Date.now(), type: ex.def.id, text });
+      S().journal.push(Object.assign({ id: U.uid(), ts: Date.now(), type: ex.def.id, title: ex.def.name, text }, extra));
       finishExercise((Date.now() - ex.started) / 1000);
     }
   });

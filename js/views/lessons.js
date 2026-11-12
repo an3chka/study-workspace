@@ -17,6 +17,7 @@
   let root = null;
   let game = null;     // текущий урок
   let focus = 'mix';
+  let depth = 'normal'; // 'normal' — 10 заданий, 'deep' — разбор темы, мини-текст и 15 заданий
 
   function S() { return Store.state; }
   function P() { return S().lessons; }
@@ -45,15 +46,21 @@
           (recent.length ? 'Недавние уроки (не повторяй): ' + recent.join('; ') + '.\n' : '') +
           (mistakes.length ? 'Недавние ошибки (можно вплести 1-2 задания на них): ' + mistakes.join('; ') + '.\n' : '') +
           (words.length ? 'Слова, которые ей трудно даются (используй 2-4 из них): ' + words.join(', ') + '.\n' : '')) +
-      'Составь урок из 9 заданий: 3 типа "choice", 2 типа "gap", 1 типа "order", 1 типа "error", 1 типа "translate", 1 типа "open". Задания — по возрастанию сложности, живые примеры из жизни студентки.\n' +
+      (o.deep
+        ? 'Это ГЛУБОКИЙ урок. В "intro" дай настоящий разбор темы по-русски: 6-10 предложений — правило, когда используется и когда нет, 3-4 примера, 2 типичные ошибки русскоязычных и как их избежать. ' +
+          'Добавь поле "passage": связный мини-текст на изучаемом языке (80-130 слов) по теме урока, интересный для студентки. ' +
+          'Составь 15 заданий: 2 типа "choice" по пониманию passage (в вопросе напиши «In the text…»), 3 типа "choice", 2 типа "gap", 1 "order", 2 "error", 2 "listen", 1 "translate", 2 "open" (одно "why", одно "creative").\n'
+        : 'Составь урок из 10 заданий: 3 типа "choice", 2 типа "gap", 1 типа "order", 1 типа "error", 1 типа "listen" (диктант на слух), 1 типа "translate", 1 типа "open".\n') +
+      'Задания — по возрастанию сложности, живые примеры из жизни студентки.\n' +
       'В "choice" делай ловушки: среди неверных вариантов — типичные ошибки русскоговорящих (калька с русского, лишний артикль, «I am agree» и т.п.), а в "explain" объясняй, в чём ловушка.\n' +
       '"error" — предложение с ОДНОЙ ошибкой, которую надо найти и исправить. "open" — либо вопрос на рассуждение «почему так, а не иначе?» (kind: "why"), либо творческое задание: написать 2-3 своих предложения с темой урока (kind: "creative").\n' +
       'Верни JSON строго такого вида:\n' +
-      '{"title": "название урока по-русски", "intro": "объяснение темы по-русски, 2-4 коротких предложения, с 1-2 примерами", "exercises": [\n' +
+      '{"title": "название урока по-русски", "intro": "объяснение темы по-русски' + (o.deep ? ' (подробный разбор)' : ', 2-4 коротких предложения, с 1-2 примерами') + '"' + (o.deep ? ', "passage": "мини-текст"' : '') + ', "exercises": [\n' +
       ' {"type": "choice", "question": "вопрос или предложение с пропуском ___", "options": ["вариант1", "вариант2", "вариант3", "вариант4"], "answer": 0, "explain": "почему так, по-русски, 1 предложение"},\n' +
       ' {"type": "gap", "sentence": "предложение с одним пропуском ___", "answer": "правильное слово", "accept": ["допустимые варианты"], "hint": "подсказка по-русски", "explain": "почему, по-русски"},\n' +
       ' {"type": "order", "translation": "перевод на русский", "answer": "правильное предложение на изучаемом языке из 4-9 слов"},\n' +
       ' {"type": "error", "sentence": "предложение с одной ошибкой", "answer": "исправленное предложение", "explain": "в чём была ошибка, по-русски"},\n' +
+      ' {"type": "listen", "text": "предложение для диктанта на изучаемом языке, 6-12 слов, с темой урока", "translation": "перевод"},\n' +
       ' {"type": "translate", "ru": "предложение по-русски", "answer": "эталонный перевод"},\n' +
       ' {"type": "open", "kind": "why" или "creative", "task": "задание по-русски", "sample": "пример хорошего ответа"}\n' +
       ']}';
@@ -89,6 +96,12 @@
         if (!e.ru || !e.answer) return null;
         return { type: 'translate', ru: String(e.ru), answer: String(e.answer) };
       }
+      if (e.type === 'listen') {
+        const text = String(e.text || e.answer || '').trim();
+        const n = text.split(/\s+/).length;
+        if (n < 2 || n > 25) return null;
+        return { type: 'listen', text, translation: String(e.translation || ''), topic: e.topic };
+      }
       if (e.type === 'error') {
         if (!e.sentence || !e.answer || norm(e.sentence) === norm(e.answer)) return null;
         return { type: 'error', sentence: String(e.sentence), answer: String(e.answer), explain: e.explain || '', topic: e.topic };
@@ -99,7 +112,7 @@
       }
       return null;
     }).filter(Boolean);
-    return { title: String((lesson && lesson.title) || 'Урок'), intro: String((lesson && lesson.intro) || ''), exercises: ex };
+    return { title: String((lesson && lesson.title) || 'Урок'), intro: String((lesson && lesson.intro) || ''), passage: String((lesson && lesson.passage) || ''), exercises: ex };
   }
 
   function norm(s) { return String(s == null ? '' : s).toLowerCase().replace(/[’`]/g, "'").replace(/[.,!?;:"«»]/g, '').replace(/\s+/g, ' ').trim(); }
@@ -109,11 +122,11 @@
 
   async function startLesson(btn, o) {
     if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); location.hash = '#/settings'; return; }
-    const r = await AI.run(btn, () => AI.ask({ json: true, temperature: 0.8, system: SYSTEM, prompt: lessonPrompt(o) }));
+    const r = await AI.run(btn, () => AI.ask({ json: true, temperature: 0.8, system: SYSTEM, prompt: lessonPrompt(o), maxTokens: o.deep ? 9000 : 5000 }));
     if (!r) return;
     const lesson = sanitize(r);
     if (lesson.exercises.length < 3) { U.toast('Урок получился неполным. Попробуй ещё раз или выбери другую модель.'); return; }
-    game = { kind: o.review ? 'review' : 'lesson', lesson, i: -1, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), topicId: o.topicId };
+    game = { kind: o.review ? 'review' : 'lesson', deep: !!o.deep, lesson, i: -1, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), topicId: o.topicId };
     if (!lesson.intro) game.i = 0;
     openGame();
   }
@@ -203,6 +216,7 @@
     if (e.type === 'choice') return e.options[e.answer];
     if (e.type === 'gap') return e.sentence.replace(/_{2,}/, e.answer);
     if (e.type === 'open') return e.sample || '';
+    if (e.type === 'listen') return e.text;
     return e.answer;
   }
 
@@ -287,6 +301,38 @@
     answer(!!r.correct, mine, { feedback: r.feedback || '', better: r.better || '' });
   }
 
+  // Диктант: сравниваем по словам, мелкие опечатки (1 слово из 8) прощаем
+  function checkListen(mine) {
+    const e = current();
+    const want = norm(e.text).split(' ');
+    const got = norm(mine).split(' ');
+    let ok = 0;
+    want.forEach((w, i) => { if (got[i] === w || got.includes(w)) ok++; });
+    const ratio = ok / want.length;
+    const missed = want.filter((w) => !got.includes(w));
+    answer(ratio >= 0.88, mine, { feedback: ratio === 1 ? 'Каждое слово верно!' : 'Совпало слов: ' + ok + ' из ' + want.length + (missed.length ? '. Не расслышала: ' + missed.slice(0, 5).join(', ') : '') });
+  }
+
+  // Диктант без нейросети — предложения из текстов библиотеки
+  App.startDictation = function () {
+    const order = ['A1', 'A2', 'B1', 'B2', 'C1'];
+    const lv = P().level || 'A2';
+    const okLevels = order.slice(Math.max(0, order.indexOf(lv) - 1), order.indexOf(lv) + 1);
+    const sentences = [];
+    (window.LIBRARY || []).filter((x) => okLevels.includes(x.level) || !P().level).forEach((x) => {
+      x.body.replace(/[—–]\s*/g, '').split(/(?<=[.!?])\s+|\n+/).forEach((sn) => {
+        const t = sn.trim();
+        const n = t.split(/\s+/).length;
+        if (n >= 4 && n <= 14 && !/[«»"]/.test(t)) sentences.push(t);
+      });
+    });
+    for (let i = sentences.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [sentences[i], sentences[j]] = [sentences[j], sentences[i]]; }
+    const lesson = sanitize({ title: 'Диктант на слух', intro: '', exercises: sentences.slice(0, 6).map((text) => ({ type: 'listen', text })) });
+    if (!lesson.exercises.length) { U.toast('Не нашлось предложений для диктанта'); return; }
+    game = { kind: 'drill', lesson, i: 0, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now() };
+    openGame();
+  };
+
   async function checkTranslate(btn, mine) {
     const e = current();
     const r = await AI.run(btn, () => AI.ask({
@@ -349,10 +395,13 @@
         '<section class="card lesson-start">' +
           '<h2>Новый урок</h2>' +
           '<div class="seg" role="group" aria-label="Фокус урока">' + FOCUS.map(([k, n]) => '<button class="' + (focus === k ? 'on' : '') + '" data-l="focus" data-v="' + k + '">' + n + '</button>').join('') + '</div>' +
+          '<div class="seg" role="group" aria-label="Глубина урока"><button class="' + (depth === 'normal' ? 'on' : '') + '" data-l="depth" data-v="normal">Обычный · 10 заданий</button>' +
+          '<button class="' + (depth === 'deep' ? 'on' : '') + '" data-l="depth" data-v="deep">Глубокий · разбор, текст, 15 заданий</button></div>' +
           '<input id="lesson-topic" maxlength="100" placeholder="Тема (необязательно): путешествия, Present Perfect, small talk…" aria-label="Тема урока">' +
           '<button class="btn primary big" data-l="start">' + I('play') + ' Начать урок</button>' +
+          '<button class="btn" data-l="dictation">' + I('volume') + ' Диктант на слух (без нейросети)</button>' +
           (prof.mistakes.length >= 3 ? '<button class="btn" data-l="review">' + I('target') + ' Работа над ошибками (' + Math.min(prof.mistakes.length, 15) + ')</button>' : '') +
-          '<p class="muted small">8 заданий · 3 жизни · +10 XP за ответ, +5 за серию из 3, +20 за урок без ошибок</p>' +
+          '<p class="muted small">3 жизни · +10 XP за ответ, +5 за серию из 3, +20 за урок без ошибок. В уроках есть ловушки, диктант на слух, вопросы «почему?» и творческие задания.</p>' +
         '</section>' +
       '</div>' +
       (hist.length ? '<section class="card"><h2>История</h2><ul class="lesson-hist">' + hist.map((h) =>
@@ -377,7 +426,8 @@
       (game.autoTaskId && S().active && S().active.taskId === game.autoTaskId ? '<div class="auto-timer muted small">' + I('timer') + ' время идёт в «' + U.esc((Store.task(game.autoTaskId) || {}).name || '') + '» <button class="link-btn" data-l="auto-off">выключить</button></div>' : '');
 
     if (game.i < 0) {
-      el.innerHTML = '<div class="game">' + top + '<div class="card game-card"><h2>' + U.esc(L.title) + '</h2><p class="lesson-intro">' + U.esc(L.intro).replace(/\n/g, '<br>') + '</p>' +
+      el.innerHTML = '<div class="game">' + top + '<div class="card game-card"><h2>' + U.esc(L.title) + '</h2><div class="lesson-intro">' + App.md(L.intro) + '</div>' +
+        (L.passage ? '<div class="passage"><div class="passage-head"><b>Текст урока</b><button class="btn small" data-l="speak" data-t="' + U.esc(L.passage) + '">' + I('volume') + ' Послушать</button></div><p>' + U.esc(L.passage).replace(/\n/g, '<br>') + '</p></div>' : '') +
         '<button class="btn primary big" data-l="next">Поехали ' + I('chevron-right') + '</button></div></div>';
       return;
     }
@@ -402,6 +452,14 @@
         '<div class="order-line">' + (picked.length ? picked.map((w, k) => '<button class="wchip on" data-l="unpick" data-k="' + k + '"' + (a ? ' disabled' : '') + '>' + U.esc(w.text) + '</button>').join('') : '<span class="muted small">нажимай на слова по порядку</span>') + '</div>' +
         '<div class="order-bank">' + e.words.map((w, k) => picked.some((p) => p.k === k) ? '<span class="wchip ghost">' + U.esc(w) + '</span>' : '<button class="wchip" data-l="pick" data-k="' + k + '"' + (a ? ' disabled' : '') + '>' + U.esc(w) + '</button>').join('') + '</div>' +
         (a ? '' : '<button class="btn primary" data-l="check-order"' + (picked.length === e.words.length ? '' : ' disabled') + '>Проверить</button>');
+    } else if (e.type === 'listen') {
+      body = '<p class="ex-kind">Аудирование: напиши, что услышала</p>' +
+        '<div class="listen-btns"><button class="btn primary big" data-l="listen-play">' + I('volume') + ' Слушать</button>' +
+        '<button class="btn" data-l="listen-slow">' + I('volume') + ' Медленно</button></div>' +
+        '<form id="listen-form" class="gap-form tr-form"><textarea name="ans" rows="2" autocomplete="off" spellcheck="false" placeholder="напиши услышанное"' + (a ? ' disabled' : '') + '>' + (a ? U.esc(a.mine) : '') + '</textarea>' +
+        (a ? '' : '<button class="btn primary" type="submit">Проверить</button>') + '</form>' +
+        (a && e.translation ? '<p class="muted small">Перевод: ' + U.esc(e.translation) + '</p>' : '');
+      if (!a && game.lastSpoken !== game.i) { game.lastSpoken = game.i; setTimeout(() => App.speak(e.text), 300); }
     } else if (e.type === 'error' || e.type === 'open') {
       const kind = e.type === 'error' ? 'Ловушка: найди и исправь ошибку' : e.kind === 'why' ? 'Подумай: почему?' : 'Творческое задание';
       body = '<p class="ex-kind">' + kind + '</p><p class="ex-q">' + U.esc(e.type === 'error' ? e.sentence : e.task) + '</p>' +
@@ -428,8 +486,9 @@
         '<div id="ex-ask"></div></div>';
     }
     const skip = !a ? '<button class="btn ghost small dontknow" data-l="dontknow">' + I('alert') + ' Не знаю — покажи ответ</button>' : '';
+    if (L.passage) body = '<details class="passage-mini"' + (/in the text/i.test(e.question || '') ? ' open' : '') + '><summary class="muted small">Текст урока</summary><p>' + U.esc(L.passage).replace(/\n/g, '<br>') + '</p></details>' + body;
     el.innerHTML = '<div class="game">' + top + '<div class="card game-card">' + body + skip + '</div>' + fb + '</div>';
-    const inp = el.querySelector('#gap-form input:not([disabled]), #tr-form textarea:not([disabled]), #open-form textarea:not([disabled])');
+    const inp = el.querySelector('#gap-form input:not([disabled]), #tr-form textarea:not([disabled]), #open-form textarea:not([disabled]), #listen-form textarea:not([disabled])');
     if (inp) inp.focus();
     const nb = el.querySelector('#next-btn');
     if (nb) nb.focus();
@@ -528,11 +587,13 @@
     });
   };
 
-  App.speak = function (text, lang) {
-    if (!('speechSynthesis' in window)) return;
+  App.speak = function (text, lang, rate) {
+    if (!('speechSynthesis' in window)) { U.toast('Браузер не умеет читать вслух'); return; }
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang || P().lang || 'en-US'; u.rate = 0.9;
+    u.lang = lang || P().lang || 'en-US'; u.rate = rate || 0.9;
+    const v = App.bestVoice(u.lang);
+    if (v) u.voice = v;
     speechSynthesis.speak(u);
   };
 
@@ -545,7 +606,8 @@
     const ex = current();
     switch (b.dataset.l) {
       case 'focus': focus = b.dataset.v; App.render(); break;
-      case 'start': startLesson(b, { focus, topic: (root.querySelector('#lesson-topic') || {}).value }); break;
+      case 'depth': depth = b.dataset.v; App.render(); break;
+      case 'start': startLesson(b, { focus, deep: depth === 'deep', topic: (root.querySelector('#lesson-topic') || {}).value }); break;
       case 'review': startLesson(b, { review: true }); break;
       case 'placement': startPlacement(); break;
       case 'ask-open': {
@@ -564,7 +626,7 @@
         b.remove();
         break;
       }
-      case 'again': game = null; App.render(); startLesson(root.querySelector('[data-l=start]'), { focus }); break;
+      case 'again': game = null; App.render(); startLesson(root.querySelector('[data-l=start]'), { focus, deep: depth === 'deep' }); break;
       case 'home': game = null; App.render(); break;
       case 'quit':
         if (game.done || game.i <= 0 || await App.confirm('Выйти из урока? Прогресс этого урока не сохранится, а записанное время останется.', 'Выйти')) { autoTimerStop(); game = null; App.render(); }
@@ -581,6 +643,9 @@
         break;
       }
       case 'speak': App.speak(b.dataset.t); break;
+      case 'listen-play': App.speak(ex.text); break;
+      case 'listen-slow': App.speak(ex.text, null, 0.6); break;
+      case 'dictation': App.startDictation(); break;
       case 'set-level': P().level = b.dataset.v; Store.save(); U.toast('Уровень теперь ' + b.dataset.v); b.closest('.level-suggest').remove(); break;
     }
   });
@@ -598,6 +663,12 @@
       const mine = e.target.ans.value.trim();
       if (!mine) return;
       checkTranslate(e.target.querySelector('button'), mine);
+    }
+    if (e.target.id === 'listen-form') {
+      e.preventDefault();
+      const mine = e.target.ans.value.trim();
+      if (!mine) return;
+      checkListen(mine);
     }
     if (e.target.id === 'open-form') {
       e.preventDefault();
@@ -630,4 +701,12 @@
   };
 
   App.levelOf = levelOf;
+
+  // Самый естественный голос для языка (Google/Microsoft «Natural» звучат лучше системных)
+  App.bestVoice = function (lang) {
+    if (!('speechSynthesis' in window)) return null;
+    const vs = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.replace('_', '-').toLowerCase().startsWith(String(lang || 'en').slice(0, 2).toLowerCase()));
+    const score = (v) => (/natural|neural|online/i.test(v.name) ? 3 : 0) + (/google|microsoft/i.test(v.name) ? 2 : 0) + (v.lang.replace('_', '-') === lang ? 1 : 0);
+    return vs.sort((a, b) => score(b) - score(a))[0] || null;
+  };
 })();
