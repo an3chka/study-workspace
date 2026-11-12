@@ -16,7 +16,7 @@
 
   // Простая разметка: **жирный** и `код`
   App.md = function (text) {
-    return U.esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+    return U.esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/~~(.+?)~~/g, '<s>$1</s>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
   };
 
   function done() { const p = S().lessons; p.theoryDone = p.theoryDone || {}; return p.theoryDone; }
@@ -60,6 +60,11 @@
         '<section class="card theory-main">' + t.theory.map((p) => '<p>' + App.md(p) + '</p>').join('') +
           (t.formula ? '<div class="formula">' + t.formula.map((f) => '<div>' + App.md(f) + '</div>').join('') + '</div>' : '') +
         '</section>' +
+        (t.table ? '<section class="card"><div class="card-head"><h2>Таблица</h2><button class="btn small ai-btn" data-th="table-deck">' + I('cards') + ' Сделать колоду из таблицы</button></div>' +
+          '<input class="search" id="table-search" placeholder="Найти глагол…" aria-label="Поиск по таблице">' +
+          '<div class="verb-table"><div class="vt-row vt-head"><span>V1</span><span>V2</span><span>V3</span><span>перевод</span></div>' +
+          t.table.map((r) => '<div class="vt-row" data-q="' + U.esc(r.join(' ').toLowerCase()) + '"><span><button class="icon-btn small" data-th="speak" data-t="' + U.esc(r[0] + ', ' + r[1] + ', ' + r[2]) + '" aria-label="Произнести">' + I('volume') + '</button><b>' + U.esc(r[0]) + '</b></span><span>' + U.esc(r[1]) + '</span><span>' + U.esc(r[2]) + '</span><span class="muted">' + U.esc(r[3]) + '</span></div>').join('') +
+          '</div></section>' : '') +
         '<section class="card"><h2>Примеры</h2><ul class="examples">' + t.examples.map(([en, ru]) =>
           '<li><button class="icon-btn small" data-th="speak" data-t="' + U.esc(en) + '" aria-label="Произнести">' + I('volume') + '</button><div><b>' + U.esc(en) + '</b><span class="muted">' + U.esc(ru) + '</span></div></li>').join('') + '</ul></section>' +
         (t.mistakes && t.mistakes.length ? '<section class="card"><h2>Частые ошибки</h2><ul class="mistake-list">' + t.mistakes.map(([bad, good, why]) =>
@@ -71,6 +76,8 @@
         '</section>' +
         App.askBoxHTML('theory-' + t.id, 'Спросить про эту тему', 'Например: «а чем это отличается от Past Simple?»') +
       '</div>';
+    const ts = el.querySelector('#table-search');
+    if (ts) ts.addEventListener('input', () => { const q = ts.value.trim().toLowerCase(); el.querySelectorAll('.vt-row[data-q]').forEach((r) => { r.hidden = q && !r.dataset.q.includes(q); }); });
     App.bindAskBox(el, 'theory-' + t.id, () => 'Тема грамматики: «' + t.title + '» (уровень ' + t.level + ').\nКраткая теория из справочника:\n' + t.theory.join('\n'));
   }
 
@@ -83,6 +90,13 @@
     if (b.dataset.th === 'drill' && t) App.startDrill(t);
     if (b.dataset.th === 'ai-lesson' && t) App.startTopicLesson(b, t);
     if (b.dataset.th === 'level-test') levelTest(b.dataset.lv);
+    if (b.dataset.th === 'table-deck' && t && t.table) {
+      if (S().decks.some((d) => d.setId === 'tbl-' + t.id)) { U.toast('Такая колода уже есть в «Карточках»'); return; }
+      S().decks.push({ id: U.uid(), setId: 'tbl-' + t.id, name: t.title.replace(/:.*$/, ''), lang: 'en-US', direction: 'fb', created: Date.now(),
+        cards: t.table.map((r) => ({ id: U.uid(), front: r[0], back: r[1] + ' — ' + r[2] + ' (' + r[3] + ')', note: '', created: Date.now() })) });
+      Store.save();
+      U.toast('Колода готова: ' + t.table.length + ' глаголов — в «Карточках»');
+    }
   });
 
   // Проверочный тест по уровню: случайные задания из всех тем уровня (без нейросети)
