@@ -65,6 +65,7 @@
       return;
     }
     const tasks = st.tasks.filter((t) => !t.archived);
+    const auto = autoInfo();
     const sug = suggestedTask();
     const sel = topPick && tasks.some((t) => t.id === topPick) ? topPick : (sug && sug.id);
     const mode = st.settings.lastMode || 'watch';
@@ -77,7 +78,9 @@
         }).join('') + '</select>' : '<span class="muted small tb-empty">Добавь задачу, чтобы засекать время</span>') +
       '<div class="seg tb-mode" role="group" aria-label="Режим"><button class="' + (mode === 'watch' ? 'on' : '') + '" data-tb="mode" data-v="watch" title="Секундомер">' + I('timer') + '</button>' +
       '<button class="' + (mode === 'pomo' ? 'on' : '') + '" data-tb="mode" data-v="pomo" title="Pomodoro ' + st.settings.pomoWork + '/' + st.settings.pomoBreak + '">' + I('clock') + ' ' + st.settings.pomoWork + '</button></div>' +
-      (tasks.length ? '<button class="btn small primary" data-tb="start">' + I('play') + ' Старт</button>' : '<a class="btn small" href="#/">+ Задача</a>');
+      (tasks.length ? '<button class="btn small primary" data-tb="start">' + I('play') + ' Старт</button>' : '<a class="btn small" href="#/">+ Задача</a>') +
+      (auto ? '<span class="tb-auto' + (auto.paused ? ' paused' : '') + '" title="Время в этом разделе считается само, пока ты занимаешься. Выключить — в Настройках.">' +
+        I(auto.paused ? 'pause' : 'timer') + ' ' + (auto.paused ? 'пауза' : 'считаю сама') + ': ' + U.esc(auto.name) + ' · <b id="tb-auto">' + U.human(auto.sec) + '</b></span>' : '');
   }
 
   topbar.addEventListener('click', (e) => {
@@ -96,6 +99,75 @@
   });
   topbar.addEventListener('change', (e) => { if (e.target.id === 'tb-task') topPick = e.target.value; });
   window.addEventListener('hashchange', () => { topPick = null; renderTopbar(); });
+
+  // ---------- Автоучёт времени по присутствию на странице ----------
+  // Пока ты в учебном разделе, вкладка открыта и ты что-то делаешь —
+  // время само пишется в подходящую задачу. Без действий 2 минуты — пауза.
+
+  const AUTO_ROUTES = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang' };
+  const IDLE_MS = 2 * 60 * 1000;
+  let lastInput = Date.now();
+  ['mousemove', 'keydown', 'scroll', 'touchstart', 'click'].forEach((ev) =>
+    window.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true }));
+
+  function autoTaskFor(route) {
+    const cat = AUTO_ROUTES[route];
+    if (!cat) return null;
+    const st = Store.state;
+    const last = {};
+    st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId]) last[x.taskId] = x.start; });
+    const list = st.tasks.filter((t) => !t.archived && t.categoryId === cat).sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0));
+    if (list[0]) return list[0];
+    if (cat !== 'lang') return null;
+    const t = { id: U.uid(), name: 'Английский', categoryId: 'lang', createdAt: Date.now(), goalMin: 0 };
+    st.tasks.push(t);
+    return t;
+  }
+
+  function autoInfo() {
+    const st = Store.state;
+    if (st.settings.autoTrack === false || Timer.active || !AUTO_ROUTES[routeName()]) return null;
+    const s = st.autoSessId && st.sessions.find((x) => x.id === st.autoSessId);
+    const task = s ? Store.task(s.taskId) : null;
+    const name = task ? task.name : 'Английский';
+    const todaySec = Stats.sum(Stats.inRange(U.startOfDay(Date.now()), Date.now() + 1).filter((x) => x.kind === 'auto' && (!s || x.taskId === s.taskId)));
+    const paused = document.hidden || Date.now() - lastInput > IDLE_MS;
+    return { name, sec: todaySec, paused };
+  }
+
+  // Раз в 15 секунд продлеваем «авто-запись» (или начинаем новую)
+  function autoTick() {
+    const st = Store.state;
+    const route = routeName();
+    const active = st.settings.autoTrack !== false && !Timer.active && AUTO_ROUTES[route] && !document.hidden && Date.now() - lastInput <= IDLE_MS;
+    const now = Date.now();
+    let s = st.autoSessId && st.sessions.find((x) => x.id === st.autoSessId);
+    if (!active) return;
+    const task = autoTaskFor(route);
+    if (!task) return;
+    // продолжаем ту же запись, если перерыв был меньше минуты и задача та же
+    if (s && s.taskId === task.id && now - s.end < 60000 && U.dayKey(s.start) === U.dayKey(now)) {
+      s.end = now;
+      s.sec = Math.round((s.end - s.start) / 1000);
+    } else {
+      s = { id: U.uid(), taskId: task.id, start: now - 15000, end: now, sec: 15, kind: 'auto' };
+      st.sessions.push(s);
+      st.autoSessId = s.id;
+    }
+    Store.saveSoon();
+    const el = document.getElementById('tb-auto');
+    if (el) el.textContent = U.human(Stats.sum(Stats.inRange(U.startOfDay(now), now + 1).filter((x) => x.kind === 'auto' && x.taskId === task.id)));
+  }
+  setInterval(() => { autoTick(); if (!Timer.active) renderTopbarAutoState(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (!Timer.active) renderTopbar(); });
+
+  // Обновить только надпись «пауза / считаю», не перерисовывая всю панель (чтобы не сбивать выбор задачи)
+  function renderTopbarAutoState() {
+    const el = topbar.querySelector('.tb-auto');
+    const info = autoInfo();
+    if (!el || !info) { if (!!el !== !!info) renderTopbar(); return; }
+    if (el.classList.contains('paused') !== info.paused) renderTopbar();
+  }
 
   // ---------- Мини-таймер в нижней панели ----------
 

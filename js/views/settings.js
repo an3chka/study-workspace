@@ -40,7 +40,8 @@
           '</select><button type="button" class="btn" data-s="test-notify">' + I('play') + ' Прослушать</button></span></label>' +
           '<p class="muted small">«Без звука» — уведомления только всплывают на экране. Фоновая музыка от этого не зависит.</p>' +
         '</fieldset>' +
-        '<label class="check"><input type="checkbox" name="autoTimer"' + (st.autoTimer !== false ? ' checked' : '') + '> Автотаймер: время уроков, тестов и тренировок записывается само</label>' +
+        '<label class="check"><input type="checkbox" name="autoTrack"' + (st.autoTrack !== false ? ' checked' : '') + '> Автоучёт: пока я в «Языках» и что-то делаю, время само идёт в задачу по английскому (пауза после 2 минут без действий)</label>' +
+                '<label class="check"><input type="checkbox" name="autoTimer"' + (st.autoTimer !== false ? ' checked' : '') + '> Автотаймер: время уроков, тестов и тренировок записывается само</label>' +
         '<label class="check"><input type="checkbox" name="autoTranslate"' + (st.autoTranslate ? ' checked' : '') + '> Автоперевод слов в «Чтении» (бесплатный сервис MyMemory, ему отправляется только слово)</label>' +
         '<label>Новых карточек в день (на колоду)<input type="number" name="newCardsPerDay" min="1" max="200" value="' + st.newCardsPerDay + '"></label>' +
         '<label>Тема<select name="theme">' +

@@ -166,7 +166,7 @@
       const c = Store.category(t && t.categoryId);
       return '<li' + (s.live ? ' class="live"' : '') + '><i style="background:' + c.color + '"></i>' +
         '<span class="h-time">' + U.timeLabel(s.start) + '–' + (s.live ? 'сейчас' : U.timeLabel(s.end)) + '</span>' +
-        '<span class="h-name">' + U.esc(t ? t.name : 'Удалённая задача') + (s.kind === 'pomo' ? ' <span class="tag">pomodoro</span>' : s.kind === 'manual' ? ' <span class="tag">вручную</span>' : '') + '</span>' +
+        '<span class="h-name">' + U.esc(t ? t.name : 'Удалённая задача') + (s.kind === 'pomo' ? ' <span class="tag">pomodoro</span>' : s.kind === 'manual' ? ' <span class="tag">вручную</span>' : s.kind === 'auto' ? ' <span class="tag">авто</span>' : '') + '</span>' +
         '<b' + (s.live ? ' data-live-session' : '') + '>' + U.human(s.sec) + '</b>' +
         (s.live ? '<span></span>' : '<button class="icon-btn small" data-act="edit-session" data-id="' + s.id + '" aria-label="Изменить запись">' + I('pencil') + '</button>') +
         '</li>';
