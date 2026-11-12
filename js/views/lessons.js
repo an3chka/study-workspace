@@ -108,7 +108,7 @@
       }
       if (e.type === 'open') {
         if (!e.task) return null;
-        return { type: 'open', kind: e.kind === 'why' ? 'why' : 'creative', task: String(e.task), sample: String(e.sample || ''), topic: e.topic };
+        return { type: 'open', kind: e.kind === 'why' ? 'why' : 'creative', task: String(e.task), sample: String(e.sample || ''), topic: e.topic, context: String(e.context || '') };
       }
       return null;
     }).filter(Boolean);
@@ -291,7 +291,7 @@
         : 'Творческое задание: ' + e.task + '\nОценивай, выполнено ли задание и правильно ли использована тема; мелкие ошибки исправь, но засчитывай, если суть верна.';
     const r = await AI.run(btn, () => AI.ask({
       json: true, temperature: 0.3, system: SYSTEM,
-      prompt: 'Проверь ответ ученицы (уровень ' + (P().level || 'A2') + ').\n' + what + '\nОтвет ученицы: "' + mine + '"\n' +
+      prompt: 'Проверь ответ ученицы (уровень ' + (P().level || 'A2') + ').\n' + what + (e.context ? '\nТекст, к которому задание:\n' + e.context.slice(0, 3500) : '') + '\nОтвет ученицы: "' + mine + '"\n' +
         'Верни JSON: {"correct": true/false, "feedback": "2-3 предложения по-русски: что хорошо и что улучшить", "better": "исправленный или улучшенный вариант её ответа"}',
     }));
     if (!r) {
@@ -463,6 +463,7 @@
     } else if (e.type === 'error' || e.type === 'open') {
       const kind = e.type === 'error' ? 'Ловушка: найди и исправь ошибку' : e.kind === 'why' ? 'Подумай: почему?' : 'Творческое задание';
       body = '<p class="ex-kind">' + kind + '</p><p class="ex-q">' + U.esc(e.type === 'error' ? e.sentence : e.task) + '</p>' +
+        (e.context ? '<details class="passage-mini"><summary class="muted small">Текст</summary><p>' + U.esc(e.context).replace(/\n/g, '<br>') + '</p></details>' : '') +
         (e.type === 'error' ? '<p class="muted small">Напиши всё предложение правильно.</p>' : '') +
         '<form id="open-form" class="gap-form tr-form"><textarea name="ans" rows="' + (e.type === 'error' ? 2 : 4) + '" placeholder="' + (e.type === 'error' ? 'исправленное предложение' : e.kind === 'why' ? 'объясни своими словами (можно по-русски)' : 'твой текст') + '"' + (a ? ' disabled' : '') + '>' +
         (a ? U.esc(a.mine) : (e.type === 'error' ? U.esc(e.sentence) : '')) + '</textarea>' +
@@ -540,7 +541,7 @@
   App.askBoxHTML = function (id, title, placeholder) {
     const h = askHistory[id] || [];
     return '<section class="card ask-box" data-ask="' + id + '"><h2 class="h-ic">' + I('sparkles') + ' ' + U.esc(title) + '</h2>' +
-      '<div class="ask-log">' + h.map((m) => '<div class="ask-msg ' + m.role + '">' + (m.role === 'user' ? U.esc(m.text) : App.md(m.text)) + '</div>').join('') + '</div>' +
+      '<div class="ask-log">' + h.filter((m, i) => !(i === 0 && m.role === 'user' && m.text.startsWith('[начало]'))).map((m) => '<div class="ask-msg ' + m.role + '">' + (m.role === 'user' ? U.esc(m.text) : App.md(m.text)) + '</div>').join('') + '</div>' +
       '<form class="ask-form"><textarea name="q" rows="2" maxlength="600" placeholder="' + U.esc(placeholder || 'Задай вопрос') + '"></textarea>' +
       '<div class="ask-btns"><button class="btn primary">Спросить</button><button type="button" class="btn ghost small" data-ask-copy>' + I('note') + ' Скопировать запрос</button></div></form>' +
       '<p class="muted small">1 вопрос = 1 запрос к нейросети. Закончился лимит? «Скопировать запрос» — и вставь в любую другую нейросеть.</p></section>';
@@ -561,6 +562,18 @@
       catch (err) { window.prompt('Скопируй текст запроса:', fullPrompt(q)); }
     };
     box.querySelector('[data-ask-copy]').addEventListener('click', () => copy(ta.value.trim()));
+    // Нейросеть начинает разговор сама (например, задаёт первый вопрос по тексту)
+    if (opts.opener && !(askHistory[id] || []).length && (AI.ready() || AI._mock)) {
+      const log = box.querySelector('.ask-log');
+      log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant typing">…</div>');
+      AI.ask({ temperature: opts.temperature == null ? 0.6 : opts.temperature, system: opts.system + '\n\nКонтекст:\n' + contextFn(), prompt: opts.opener })
+        .then((first) => {
+          const tmp = log.querySelector('.typing'); if (tmp) tmp.remove();
+          askHistory[id] = [{ role: 'user', text: opts.opener }, { role: 'assistant', text: first }];
+          log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">' + App.md(first) + '</div>');
+        })
+        .catch((e) => { const tmp = log.querySelector('.typing'); if (tmp) tmp.textContent = e.message; });
+    }
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const q = ta.value.trim();

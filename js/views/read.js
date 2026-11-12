@@ -164,6 +164,87 @@
       }).join('') + '</div></section>';
   }
 
+  // ---------- «После текста»: тренировки ----------
+
+  const CREATIVE = [
+    ['retell', 'Перескажи текст', 'Перескажи текст своими словами на английском в 3–5 предложениях.'],
+    ['opinion', 'Твоё мнение', 'Согласна ли ты с автором или героем? Напиши 3–5 предложений на английском и объясни почему.'],
+    ['continue', 'Продолжи историю', 'Придумай, что было дальше (или другой конец). Напиши 4–6 предложений на английском.'],
+    ['personal', 'Из моей жизни', 'Был ли у тебя похожий опыт? Расскажи о нём в 4–6 предложениях на английском.'],
+    ['words', '5 слов из текста', 'Выбери 5 интересных слов или выражений из текста и напиши с каждым своё предложение.'],
+  ];
+  let talkOpen = null;
+
+  function afterTextHTML(t) {
+    const ai = AI.ready() || !!AI._mock;
+    return '<section class="card after-text"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' После текста</h2>' +
+      (t.quiz ? '<span class="tag ok">вопросы: ' + t.quiz + '%</span>' : '') + '</div>' +
+      '<p class="muted small">Выбери тренировку — можно несколько по очереди.</p>' +
+      '<div class="after-grid">' +
+        '<button class="after-item" data-r="quiz">' + I('target') + '<b>Вопросы на понимание</b><small>что поняла из текста</small></button>' +
+        '<button class="after-item" data-r="drill-gaps">' + I('pen') + '<b>Пропуски</b><small>вставь слово из текста</small></button>' +
+        '<button class="after-item" data-r="drill-order">' + I('cards') + '<b>Собери предложение</b><small>фразы из текста по словам</small></button>' +
+        '<button class="after-item" data-r="drill-listen">' + I('volume') + '<b>Диктант по тексту</b><small>слушай и записывай</small></button>' +
+        '<button class="after-item ai" data-r="talk">' + I('sparkles') + '<b>Поговорить о тексте</b><small>диалог на английском с нейросетью</small></button>' +
+        CREATIVE.map(([id, name, desc]) => '<button class="after-item ai" data-r="creative" data-id="' + id + '">' + I('pen') + '<b>' + name + '</b><small>' + U.esc(desc.split('.')[0].slice(0, 60)) + '</small></button>').join('') +
+      '</div>' +
+      (!ai ? '<p class="muted small">Диалог и творческие задания проверяет нейросеть — подключи её в Настройках. Остальное работает без неё.</p>' : '') +
+      (talkOpen === t.id ? App.askBoxHTML('talk-' + t.id, 'Разговор о тексте «' + t.title + '»', 'Answer in English — mistakes are OK!') : '') +
+      '</section>';
+  }
+
+  // Предложения текста для тренировок
+  function sentencesOf(t, min, max) {
+    return bodyOf(t).replace(/[—–]\s*/g, '').split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim())
+      .filter((x) => { const n = x.split(/\s+/).length; return n >= min && n <= max && !/[«»"“”]/.test(x); });
+  }
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const STOP = new Set(['the', 'and', 'that', 'with', 'this', 'from', 'have', 'they', 'there', 'their', 'which', 'when', 'what', 'were', 'would', 'about', 'into', 'than', 'then', 'them', 'your', 'some', 'very', 'just', 'only', 'also', 'because']);
+
+  function startTextDrill(t, kind) {
+    let ex = [];
+    if (kind === 'gaps') {
+      shuffle(sentencesOf(t, 6, 22)).slice(0, 6).forEach((sn) => {
+        const words = sn.split(/\s+/);
+        const cands = words.map((w, i) => ({ w: w.replace(/[^A-Za-z’'-]/g, ''), i })).filter((x) => x.i > 0 && x.w.length >= 4 && !STOP.has(x.w.toLowerCase()) && /^[a-z]/.test(x.w));
+        if (!cands.length) return;
+        const c = cands[Math.floor(Math.random() * cands.length)];
+        const sentence = words.map((w, i) => (i === c.i ? w.replace(c.w, '___') : w)).join(' ');
+        ex.push({ type: 'gap', sentence, answer: c.w, hint: 'первая буква: ' + c.w[0] + ', букв: ' + c.w.length, explain: 'В тексте: «' + sn + '»' });
+      });
+    } else if (kind === 'order') {
+      ex = shuffle(sentencesOf(t, 5, 11)).slice(0, 5).map((sn) => ({ type: 'order', translation: 'Собери предложение из текста', answer: sn.replace(/[.!?]$/, '') }));
+    } else if (kind === 'listen') {
+      ex = shuffle(sentencesOf(t, 4, 14)).slice(0, 5).map((sn) => ({ type: 'listen', text: sn }));
+    }
+    if (!ex.length) { U.toast('Текст слишком короткий для этой тренировки'); return; }
+    stopListen();
+    App.startQuiz({ gaps: 'Пропуски', order: 'Собери предложение', listen: 'Диктант' }[kind] + ': ' + t.title, ex, null, '#/read');
+  }
+
+  function startCreative(t, id) {
+    if (!AI.ready() && !AI._mock) { U.toast('Творческие задания проверяет нейросеть — подключи её в Настройках'); return; }
+    const c = CREATIVE.find((x) => x[0] === id);
+    stopListen();
+    App.startQuiz('Творческое: ' + t.title, [{ type: 'open', kind: 'creative', task: c[2], sample: '', context: bodyOf(t) }], null, '#/read');
+  }
+
+  function bindTalk(t) {
+    if (!root) return;
+    const lv = (S().lessons && S().lessons.level) || 'A2';
+    App.bindAskBox(root, 'talk-' + t.id, () => 'Текст «' + t.title + '»:\n' + bodyOf(t).slice(0, 3500), {
+      temperature: 0.7,
+      system: 'You are a friendly English conversation partner for a Russian-speaking university student (level ' + lv + '). ' +
+        'You are discussing the text below. Speak English at her level, keep replies short (2-4 sentences), and always end with ONE question: about the text, her opinion, or her own experience. ' +
+        'If her message has mistakes, first gently show the corrected version in one line starting with "✏️ Better:", then continue the conversation. ' +
+        'If she writes in Russian, answer in English and help her say it in English.',
+      opener: '[начало] Start the conversation: greet me briefly and ask your first question about the text.',
+      copyIntro: 'Let’s talk in English about this text. Be my conversation partner: short replies, correct my mistakes gently, ask me questions.',
+    });
+    const ta = root.querySelector('[data-ask="talk-' + t.id + '"] textarea');
+    if (ta) ta.focus();
+  }
+
   function markRead(t, silent) {
     t.read = true; t.readAt = Date.now();
     Store.save();
@@ -240,12 +321,11 @@
       '<div class="reader-foot">' +
         '<p class="muted small">Нажми на слово, чтобы перевести и добавить в карточки. Можно выделить несколько слов — добавится фраза.</p>' +
         (s.unknown ? '<button class="btn" data-r="all-known">' + I('check') + ' Я знаю все неотмеченные слова (' + s.unknown + ')</button>' : '') +
-        '<div class="row-btns finish-text">' +
-          '<button class="btn ai-btn" data-r="quiz">' + I('target') + ' Вопросы на понимание</button>' +
-          (t.read ? '<button class="btn" data-r="unread" data-id="' + t.id + '">Вернуть в «Читаю сейчас»</button>' : '<button class="btn primary" data-r="mark-read">' + I('check') + ' Прочитала</button>') +
-        '</div>' +
-        (t.quiz ? '<p class="muted small">Вопросы на понимание: ' + t.quiz + '%</p>' : '') +
-      '</div>';
+      '</div>' + afterTextHTML(t) +
+      '<div class="reader-foot"><div class="row-btns finish-text">' +
+        (t.read ? '<button class="btn" data-r="unread" data-id="' + t.id + '">Вернуть в «Читаю сейчас»</button>' : '<button class="btn primary" data-r="mark-read">' + I('check') + ' Прочитала</button>') +
+      '</div></div>';
+    if (talkOpen === t.id) bindTalk(t);
 
     const reader = el.querySelector('#reader');
     reader.addEventListener('mouseup', onSelect);
@@ -658,6 +738,17 @@
       case 'mark-read': if (t) { markRead(t); openId = null; App.render(); window.scrollTo(0, 0); } break;
       case 'unread': { const x = text(b.dataset.id); if (x) { x.read = false; x.readAt = null; Store.save(); App.render(); } break; }
       case 'quiz': if (t) startQuiz(b, t); break;
+      case 'drill-gaps': if (t) startTextDrill(t, 'gaps'); break;
+      case 'drill-order': if (t) startTextDrill(t, 'order'); break;
+      case 'drill-listen': if (t) startTextDrill(t, 'listen'); break;
+      case 'creative': if (t) startCreative(t, b.dataset.id); break;
+      case 'talk':
+        if (!t) break;
+        if (!AI.ready() && !AI._mock) { U.toast('Для разговора нужна нейросеть — подключи её в Настройках'); break; }
+        talkOpen = talkOpen === t.id ? null : t.id;
+        App.render();
+        if (talkOpen) setTimeout(() => { const box = root && root.querySelector('.ask-box'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+        break;
       case 'open': openId = b.dataset.id; App.render(); break;
       case 'back': stopListen(); openId = null; App.render(); break;
       case 'edit': textModal(text(b.dataset.id)); break;
