@@ -13,6 +13,12 @@
   let pop = null;
 
   function S() { return Store.state; }
+  // Текст: свой — из данных, библиотечный — из встроенной библиотеки (если его не правили)
+  function bodyOf(t) {
+    if (t.body) return t.body;
+    const x = t.libId && (window.LIBRARY || []).find((l) => l.id === t.libId);
+    return x ? x.body : '';
+  }
   function text(id) { return S().texts.find((t) => t.id === id); }
   function norm(w) { return String(w).toLowerCase().replace(/’/g, "'").trim(); }
 
@@ -57,7 +63,7 @@
   function textStats(t) {
     const dict = dictFor(t.lang);
     const known = knownSet(t.lang);
-    const uniq = Array.from(new Set(wordsOf(t.body).filter((w) => !/^\d+$/.test(w))));
+    const uniq = Array.from(new Set(wordsOf(bodyOf(t)).filter((w) => !/^\d+$/.test(w))));
     const c = { total: uniq.length, learning: 0, learned: 0, known: 0, unknown: 0 };
     uniq.forEach((w) => { c[status(w, dict, known)]++; });
     return c;
@@ -91,7 +97,7 @@
         const pctKnown = s.total ? Math.round((s.known + s.learned) / s.total * 100) : 0;
         return '<article class="card deck">' +
           '<div class="deck-head"><h2>' + U.esc(t.title) + '</h2><span class="tag">' + U.esc(App.langName(t.lang)) + '</span></div>' +
-          '<p class="muted small text-preview">' + U.esc(String(t.body).slice(0, 140)) + (t.body.length > 140 ? '…' : '') + '</p>' +
+          '<p class="muted small text-preview">' + U.esc(String(bodyOf(t)).slice(0, 140)) + (bodyOf(t).length > 140 ? '…' : '') + '</p>' +
           '<div class="deck-nums"><span><b>' + s.total + '</b> слов</span><span><b class="c-due">' + s.learning + '</b> учу</span><span><b class="c-new">' + s.unknown + '</b> не отмечено</span></div>' +
           '<div class="progress" title="Знакомые слова"><span style="width:' + pctKnown + '%"></span></div>' +
           '<div class="deck-actions"><button class="btn primary" data-r="open" data-id="' + t.id + '">Читать</button>' +
@@ -123,7 +129,7 @@
     if (!x) return;
     let t = S().texts.find((y) => y.libId === id);
     if (!t) {
-      t = { id: U.uid(), libId: id, created: Date.now(), title: x.title, lang: x.lang, body: x.body };
+      t = { id: U.uid(), libId: id, created: Date.now(), title: x.title, lang: x.lang }; // текст не копируем — берём из библиотеки
       S().texts.push(t);
       Store.save();
     }
@@ -137,7 +143,7 @@
     const known = knownSet(t.lang);
     const showUnknown = S().settings.readHighlightUnknown;
     const s = textStats(t);
-    const html = paragraphs(t.body).map((p, pi) => {
+    const html = paragraphs(bodyOf(t)).map((p, pi) => {
       const parts = p.split(WORD_RE);
       return '<p data-p="' + pi + '">' + parts.map((tok, i) => {
         if (i % 2 === 0) return U.esc(tok);
@@ -327,9 +333,9 @@
         } else {
           definitions(o.display).then((defs) => {
             done(defs && defs.length ? '<div class="wp-defs">' + defs.map((d) =>
-              '<div><span class="tag">' + U.esc(POS[d.pos] || d.pos) + '</span><ol>' + d.items.map((it) =>
-                '<li>' + U.esc(it.def) + (it.ex ? '<br><i class="muted">' + U.esc(it.ex) + '</i>' : '') + '</li>').join('') + '</ol></div>').join('') +
-              '<p class="muted small">Значения на английском — из словаря dictionaryapi.dev (Wiktionary).</p></div>' :
+              '<div><span class="tag">' + U.esc(POS[d.pos] || d.pos) + '</span>' + (d.items.length ? '<ol>' : '') + d.items.map((it) =>
+                '<li>' + U.esc(it.def) + (it.ex ? '<br><i class="muted">' + U.esc(it.ex) + '</i>' : '') + '</li>').join('') + (d.items.length ? '</ol>' : '') + '</div>').join('') +
+              '<p class="muted small">Значения на английском — из Викисловаря (Wiktionary).</p></div>' :
               '<p class="muted small">Словарь не нашёл это слово. Попробуй начальную форму (например, «go» вместо «went»).</p>');
           });
         }
@@ -406,6 +412,66 @@
   function definitions(word) {
     const key = word.toLowerCase();
     if (defCache.has(key)) return Promise.resolve(defCache.get(key));
+    return fromWiktionary(key)
+      .catch(() => null)
+      .then((r) => (r && r.length ? r : fromDictionaryApi(key)))
+      .then((r) => { if (r && r.length) defCache.set(key, r); return r; })
+      .catch(() => null);
+  }
+
+  // Убираем HTML-разметку из ответа Викисловаря
+  function stripHtml(html) {
+    const el = document.createElement('div');
+    el.innerHTML = String(html || '');
+    return (el.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // Основной источник — Викисловарь (английский). Для форм вроде «smells» идём к «smell».
+  async function fromWiktionary(word, depth) {
+    const r = await fetch('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(word));
+    if (!r.ok) return null;
+    const data = await r.json();
+    const out = [];
+    const lemmas = [];
+    (data.en || []).forEach((entry) => {
+      const items = [];
+      (entry.definitions || []).forEach((d) => {
+        const html = d.definition || '';
+        if (/form-of-definition/.test(html)) {
+          // ссылка на начальную форму: <span class="form-of-definition-link">…<a href="/wiki/life#English">
+          const m = html.match(/form-of-definition-link[\s\S]*?href="\/wiki\/([^"#]+)/);
+          if (m) {
+            const lemma = decodeURIComponent(m[1]).replace(/_/g, ' ');
+            if (!lemmas.some((x) => x.lemma === lemma)) lemmas.push({ lemma, pos: String(entry.partOfSpeech || '').toLowerCase() });
+          }
+          return;
+        }
+        const def = stripHtml(html);
+        if (!def || items.length >= 3) return;
+        const ex = (d.examples && d.examples[0]) ? stripHtml(d.examples[0]) : (d.parsedExamples && d.parsedExamples[0] ? stripHtml(d.parsedExamples[0].example) : '');
+        items.push({ def, ex: ex.length < 160 ? ex : '' });
+      });
+      const pos = String(entry.partOfSpeech || '').toLowerCase();
+      if (items.length && !/symbol|letter|abbreviation|initialism|proper noun|prefix|suffix/.test(pos)) out.push({ pos, items });
+    });
+    // Слово — форма другого слова: показываем значения начальных форм (до двух)
+    if (!depth && lemmas.length) {
+      const extra = [];
+      for (const l of lemmas.slice(0, 2)) {
+        if (l.lemma.toLowerCase() === word) continue;
+        const base = await fromWiktionary(l.lemma.toLowerCase(), 1).catch(() => null);
+        if (!base || !base.length) continue;
+        const same = base.filter((b) => b.pos === l.pos);
+        extra.push({ pos: '→ ' + l.lemma + ' (' + (POS[l.pos] || l.pos) + ')', items: [] });
+        (same.length ? same : base).slice(0, 2).forEach((b) => extra.push(b));
+      }
+      return out.concat(extra).slice(0, 6);
+    }
+    return out.slice(0, 4);
+  }
+
+  // Запасной источник — dictionaryapi.dev
+  function fromDictionaryApi(key) {
     return fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(key))
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
@@ -415,11 +481,8 @@
           (m.definitions || []).forEach((d) => { if (list.length < 3 && d.definition) list.push({ def: d.definition, ex: d.example || '' }); });
           byPos.set(m.partOfSpeech, list);
         }));
-        const out = Array.from(byPos, ([pos, items]) => ({ pos, items })).filter((x) => x.items.length).slice(0, 4);
-        defCache.set(key, out);
-        return out;
-      })
-      .catch(() => null);
+        return Array.from(byPos, ([pos, items]) => ({ pos, items })).filter((x) => x.items.length).slice(0, 4);
+      });
   }
 
   function setKnown(lang, words, isKnown) {
@@ -448,7 +511,7 @@
       body:
         '<label>Название<input name="title" required maxlength="80" value="' + U.esc(t.title) + '" placeholder="например, Глава 1"></label>' +
         '<label>Язык<select name="lang">' + App.LANGS.map(([c, n]) => '<option value="' + c + '"' + (c === t.lang ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
-        '<label>Текст<textarea name="body" rows="10" required placeholder="Вставь сюда текст на изучаемом языке">' + U.esc(t.body) + '</textarea></label>',
+        '<label>Текст<textarea name="body" rows="10" required placeholder="Вставь сюда текст на изучаемом языке">' + U.esc(bodyOf(t)) + '</textarea></label>',
       extra: isNew ? '' : '<button type="button" class="btn ghost danger-text" data-x="del">Удалить</button>',
       onOpen(form, close) {
         const del = form.querySelector('[data-x=del]');
@@ -515,7 +578,7 @@
         if (!t) break;
         const dict = dictFor(t.lang);
         const known = knownSet(t.lang);
-        const list = Array.from(new Set(wordsOf(t.body))).filter((x) => !/^\d+$/.test(x) && status(x, dict, known) === 'unknown');
+        const list = Array.from(new Set(wordsOf(bodyOf(t)))).filter((x) => !/^\d+$/.test(x) && status(x, dict, known) === 'unknown');
         if (await App.confirm('Отметить ' + list.length + ' ' + U.plural(list.length, ['слово', 'слова', 'слов']) + ' как знакомые? Они перестанут подсвечиваться во всех текстах на этом языке.', 'Отметить')) {
           setKnown(t.lang, list, true); App.render();
         }

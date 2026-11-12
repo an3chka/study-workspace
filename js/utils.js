@@ -117,6 +117,20 @@
     setTimeout(() => t.remove(), 3100);
   };
 
+  // Уведомление с кнопкой «Вернуть» (для удалений)
+  U.toastUndo = function (text, onUndo) {
+    const box = document.getElementById('toasts');
+    if (!box) return;
+    const t = document.createElement('div');
+    t.className = 'toast toast-undo';
+    t.innerHTML = '<span></span><button type="button">Вернуть</button>';
+    t.querySelector('span').textContent = text;
+    t.querySelector('button').addEventListener('click', () => { onUndo(); t.remove(); });
+    box.appendChild(t);
+    setTimeout(() => t.classList.add('hide'), 7000);
+    setTimeout(() => t.remove(), 7500);
+  };
+
   // Собирает значения полей формы в объект.
   U.formData = function (form) {
     const out = {};

@@ -25,6 +25,7 @@
   ];
 
   let root = null;
+  let histDays = 14;  // сколько дней истории показывать
   let ex = null;      // текущее упражнение
   let exTimers = [];
 
@@ -111,11 +112,8 @@
           '<textarea name="note" rows="2" maxlength="500" placeholder="Пара слов о дне (необязательно)" aria-label="Заметка"></textarea>' +
           '<button class="btn primary">Сохранить отметку</button>' +
         '</form>' +
-        (todays.length ? '<h3>Сегодня</h3><ul class="mood-today">' + todays.map((m) =>
-          '<li><span class="mood-emoji">' + MOODS[m.mood] + '</span><span class="muted small">' + U.timeLabel(m.ts) + '</span>' +
-          '<span class="small">энергия ' + m.energy + ' · стресс ' + m.stress + (m.sleep ? ' · сон ' + U.human(m.sleep * 3600) : '') + (m.tags && m.tags.length ? ' · ' + U.esc(m.tags.join(', ')) : '') + '</span>' +
-          (m.note ? '<span class="small mood-note">' + U.esc(m.note) + '</span>' : '') +
-          '<button class="icon-btn small" data-m="del-mood" data-id="' + m.id + '" aria-label="Удалить отметку">' + I('x') + '</button></li>').join('') + '</ul>' : '') +
+        '<p class="muted small">Отмечай сколько угодно раз в день — утром, после пар, вечером. Так видно, как меняется состояние в течение дня.</p>' +
+        (todays.length ? '<h3>Сегодня (' + todays.length + ')</h3><ul class="mood-today">' + todays.map(entryHTML).join('') + '</ul>' : '') +
       '</section>' +
 
       '<section class="card"><div class="card-head"><h2>Упражнения</h2>' + (practicedToday ? '<span class="tag ok">сегодня: ' + practicedToday + '</span>' : '') + '</div>' +
@@ -135,12 +133,35 @@
           (hasData ? '<p class="muted small">Отмечай теги («прогулка», «не выспалась»…) — через неделю-две здесь появится, что влияет на настроение.</p>' : '')) +
       '</section>' +
 
+      historyHTML(today) +
+
       (journal.length ? '<section class="card"><h2>Дневник</h2><ul class="journal">' + journal.map((j) =>
         '<li><div class="j-head"><span>' + (j.type === 'gratitude' ? I('sun') + ' Три хороших вещи' : I('note') + ' Разгрузка мыслей') + '</span><span class="muted small">' + U.dateLabel(j.ts) + '</span>' +
         '<button class="icon-btn small" data-m="del-journal" data-id="' + j.id + '" aria-label="Удалить запись">' + I('x') + '</button></div>' +
         '<div class="j-text">' + U.esc(j.text).replace(/\n/g, '<br>') + '</div></li>').join('') + '</ul></section>' : '') +
 
       '<p class="hint muted small">Записи хранятся только в этом браузере. Это не медицинский инструмент: если тебе долго плохо — обратись к специалисту.</p>';
+  }
+
+  // Все отметки по дням (кроме сегодняшних — они выше)
+  function historyHTML(today) {
+    const from = U.dayKey(U.addDays(U.startOfDay(Date.now()), -histDays));
+    const past = S().mood.filter((m) => m.day !== today && m.day >= from).sort((a, b) => b.ts - a.ts);
+    const older = S().mood.filter((m) => m.day < from).length;
+    if (!past.length && !older) return '';
+    const byDay = {};
+    past.forEach((m) => { (byDay[m.day] = byDay[m.day] || []).push(m); });
+    return '<section class="card"><div class="card-head"><h2>История отметок</h2><span class="muted small">всего ' + S().mood.length + '</span></div>' +
+      Object.keys(byDay).map((d) => '<div class="hist-day"><div class="hist-date">' + U.weekday(new Date(d + 'T12:00:00').getTime()) + ', ' + U.dateLabel(new Date(d + 'T12:00:00').getTime()) + '</div>' +
+        '<ul class="mood-today">' + byDay[d].map(entryHTML).join('') + '</ul></div>').join('') +
+      (older ? '<button class="btn small" data-m="hist-more">Показать ещё (' + older + ')</button>' : '') + '</section>';
+  }
+
+  function entryHTML(m) {
+    return '<li><span class="mood-emoji">' + MOODS[m.mood] + '</span><span class="muted small">' + U.timeLabel(m.ts) + '</span>' +
+      '<span class="small">энергия ' + m.energy + ' · стресс ' + m.stress + (m.sleep ? ' · сон ' + U.human(m.sleep * 3600) : '') + (m.tags && m.tags.length ? ' · ' + U.esc(m.tags.join(', ')) : '') + '</span>' +
+      (m.note ? '<span class="small mood-note">' + U.esc(m.note) + '</span>' : '') +
+      '<button class="icon-btn small" data-m="del-mood" data-id="' + m.id + '" aria-label="Удалить отметку" title="Удалить отметку">' + I('x') + '</button></li>';
   }
 
   function scale(name, label, items) {
@@ -272,10 +293,21 @@
         stopEx(); ex.step++;
         if (ex.def.kind === 'timed') startTimedStep(); else App.render();
         break;
-      case 'del-mood': S().mood = S().mood.filter((m) => m.id !== b.dataset.id); Store.save(); App.render(); break;
-      case 'del-journal':
-        if (await App.confirm('Удалить запись из дневника?')) { S().journal = S().journal.filter((j) => j.id !== b.dataset.id); Store.save(); App.render(); }
+      case 'del-mood': {
+        const m = S().mood.find((x) => x.id === b.dataset.id);
+        if (!m || !(await App.confirm('Удалить отметку от ' + U.dateLabel(m.ts) + ', ' + U.timeLabel(m.ts) + '?', 'Удалить'))) break;
+        S().mood = S().mood.filter((x) => x.id !== m.id); Store.save(); App.render();
+        U.toastUndo('Отметка удалена', () => { S().mood.push(m); Store.save(); App.render(); });
         break;
+      }
+      case 'hist-more': histDays += 14; App.render(); break;
+      case 'del-journal': {
+        const j = S().journal.find((x) => x.id === b.dataset.id);
+        if (!j || !(await App.confirm('Удалить запись из дневника?'))) break;
+        S().journal = S().journal.filter((x) => x.id !== j.id); Store.save(); App.render();
+        U.toastUndo('Запись удалена', () => { S().journal.push(j); Store.save(); App.render(); });
+        break;
+      }
     }
   });
 

@@ -920,3 +920,7 @@ textarea.secret.shown { -webkit-text-security: none; }
 .diag { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }
 .diag .card-head { margin-bottom: 6px; }
 .diag pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: .82rem; line-height: 1.5; }
+.toast-undo { display: flex; align-items: center; gap: 12px; }
+.toast-undo button { border: 0; background: var(--grad); color: var(--on-grad); font: inherit; font-weight: 800; padding: 4px 10px; border-radius: 8px; cursor: pointer; }
+.hist-day { margin-bottom: 10px; }
+.hist-date { font-weight: 700; font-size: .9rem; color: var(--muted); margin: 6px 0 2px; }
