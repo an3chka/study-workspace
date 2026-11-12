@@ -110,7 +110,7 @@
         '<div class="row-btns"><button type="button" class="btn primary" data-s="ai-test">Проверить подключение</button>' +
         (used ? '<span class="muted small">запросов сегодня: ' + used + '</span>' : '') + '</div>' +
         (c.lastTest ? '<div class="ai-status ' + (c.lastTest.ok ? 'ok' : 'bad') + '">' + I(c.lastTest.ok ? 'check-circle' : 'alert') +
-          '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' + (c.lastTest.via ? '. Ответил запасной ' + U.esc(c.lastTest.via) + ' — основной сейчас недоступен (проверь VPN).' : '') : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
+          '<span>' + (c.lastTest.ok ? '<b>Работает!</b> Нейросеть ответила: «' + U.esc(c.lastTest.msg) + '»' + (c.lastTest.via ? '. Ответил запасной ' + U.esc(c.lastTest.via) + '.<br><b>Почему не ответил ' + U.esc(AI.PROVIDERS[c.provider].name.split(' ')[0]) + ':</b> ' + U.esc(c.lastTest.why || 'неизвестно') : '') : '<b>Не работает:</b> ' + U.esc(c.lastTest.msg)) +
           ' <small class="muted">(' + U.timeLabel(c.lastTest.ts) + ')</small></span></div>' : '') +
       '</form></section>';
   }
@@ -216,7 +216,7 @@
       const r = await AI.run(b, async () => {
         try {
           const res = await AI.test();
-          c.lastTest = { ok: true, msg: String(res).slice(0, 60), via: AI.lastProvider !== c.provider ? AI.PROVIDERS[AI.lastProvider].name.split(' ')[0] : '', ts: Date.now() };
+          c.lastTest = { ok: true, msg: String(res).slice(0, 60), via: AI.lastProvider !== c.provider ? AI.PROVIDERS[AI.lastProvider].name.split(' ')[0] : '', why: AI.lastPrimaryError || '', ts: Date.now() };
           U.toast('Нейросеть отвечает — всё работает!');
         } catch (err) {
           c.lastTest = { ok: false, msg: err.message, ts: Date.now() };

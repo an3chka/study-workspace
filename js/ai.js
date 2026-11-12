@@ -116,10 +116,12 @@
       if (AI._mock) { countUse(); const r = await AI._mock(o); return o.json ? (typeof r === 'string' ? parseJSON(r) : r) : r; }
       const c = cfg();
       AI.lastProvider = c.provider;
+      AI.lastPrimaryError = '';
       if (c.provider === 'custom') return AI.askOne(o);
       try {
         return await tryKeys(c.provider, o);
       } catch (err) {
+        AI.lastPrimaryError = err.message; // почему основной сервис не ответил — покажем в настройках
         const backup = AI.backupProvider();
         if (!backup) throw err;
         AI.status = 'переключаюсь на ' + PROVIDERS[backup].name.split(' ')[0] + '…';
