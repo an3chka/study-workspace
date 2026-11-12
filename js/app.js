@@ -32,6 +32,71 @@
 
   window.addEventListener('hashchange', App.render);
 
+  // ---------- Таймер сверху: на любой странице ----------
+  // Сам подставляет задачу по разделу (Языки → задача по языку, Хобби → хобби…)
+
+  const topbar = document.getElementById('topbar');
+  const ROUTE_CAT = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', hobby: 'hobby' };
+  let topPick = null; // выбранная вручную задача (до смены раздела)
+
+  function suggestedTask() {
+    const st = Store.state;
+    const tasks = st.tasks.filter((t) => !t.archived);
+    if (!tasks.length) return null;
+    const last = {};
+    st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId]) last[x.taskId] = x.start; });
+    const byRecent = (a, b) => (last[b.id] || b.createdAt || 0) - (last[a.id] || a.createdAt || 0);
+    const cat = ROUTE_CAT[routeName()];
+    const inCat = cat ? tasks.filter((t) => t.categoryId === cat).sort(byRecent) : [];
+    if (inCat[0]) return inCat[0];
+    const lastTask = st.settings.lastTask && tasks.find((t) => t.id === st.settings.lastTask);
+    return lastTask || tasks.sort(byRecent)[0];
+  }
+
+  function renderTopbar() {
+    const st = Store.state;
+    const d = Timer.display();
+    if (d) {
+      topbar.className = 'topbar running phase-' + d.phase + (d.waiting ? ' waiting' : '');
+      topbar.innerHTML = '<span class="tb-dot"></span><span class="tb-time" id="tb-time">' + d.time + '</span>' +
+        '<span class="tb-task">' + U.esc(d.name) + ' <small class="muted">' + U.esc(d.label) + '</small></span>' +
+        (d.waiting ? '<button class="btn small primary" data-tb="resume">' + I('play') + ' Продолжить</button>' : '') +
+        '<button class="btn small" data-tb="stop">' + I('stop') + ' Стоп</button>';
+      return;
+    }
+    const tasks = st.tasks.filter((t) => !t.archived);
+    const sug = suggestedTask();
+    const sel = topPick && tasks.some((t) => t.id === topPick) ? topPick : (sug && sug.id);
+    const mode = st.settings.lastMode || 'watch';
+    topbar.className = 'topbar';
+    topbar.innerHTML = I('timer') +
+      (tasks.length ? '<select id="tb-task" aria-label="Задача для таймера">' +
+        st.categories.map((c) => {
+          const list = tasks.filter((t) => t.categoryId === c.id);
+          return list.length ? '<optgroup label="' + U.esc(c.name) + '">' + list.map((t) => '<option value="' + t.id + '"' + (t.id === sel ? ' selected' : '') + '>' + U.esc(t.name) + '</option>').join('') + '</optgroup>' : '';
+        }).join('') + '</select>' : '<span class="muted small">Добавь задачу на странице «Сегодня», чтобы засекать время</span>') +
+      '<div class="seg tb-mode" role="group" aria-label="Режим"><button class="' + (mode === 'watch' ? 'on' : '') + '" data-tb="mode" data-v="watch" title="Секундомер">' + I('timer') + '</button>' +
+      '<button class="' + (mode === 'pomo' ? 'on' : '') + '" data-tb="mode" data-v="pomo" title="Pomodoro ' + st.settings.pomoWork + '/' + st.settings.pomoBreak + '">' + I('clock') + ' ' + st.settings.pomoWork + '</button></div>' +
+      (tasks.length ? '<button class="btn small primary" data-tb="start">' + I('play') + ' Старт</button>' : '<a class="btn small" href="#/">+ Задача</a>');
+  }
+
+  topbar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tb]');
+    if (!b) return;
+    const st = Store.state;
+    if (b.dataset.tb === 'stop') Timer.stop();
+    if (b.dataset.tb === 'resume') Timer.resume();
+    if (b.dataset.tb === 'mode') { st.settings.lastMode = b.dataset.v; Store.save(); renderTopbar(); App.render(); }
+    if (b.dataset.tb === 'start') {
+      const id = (topbar.querySelector('#tb-task') || {}).value;
+      if (!id) return;
+      st.settings.lastTask = id;
+      Timer.start(id, st.settings.lastMode || 'watch');
+    }
+  });
+  topbar.addEventListener('change', (e) => { if (e.target.id === 'tb-task') topPick = e.target.value; });
+  window.addEventListener('hashchange', () => { topPick = null; renderTopbar(); });
+
   // ---------- Мини-таймер в нижней панели ----------
 
   const dockTimer = document.getElementById('dock-timer');
@@ -60,8 +125,12 @@
   Timer.onChange((kind) => {
     renderDockTimer();
     if (kind === 'tick') {
+      const tt = document.getElementById('tb-time');
+      const d = Timer.display();
+      if (tt && d) tt.textContent = d.time;
       if (current && current.tick) current.tick();
     } else {
+      renderTopbar();
       App.render();
     }
   });
@@ -241,7 +310,11 @@
     App.applyTheme();
     // Проверяем задания и достижения (с небольшой задержкой, чтобы не на каждое сохранение)
     clearTimeout(gameTimer);
-    gameTimer = setTimeout(() => { if (App.checkGame) { App.checkGame(); renderSidebarStreak(); } }, 800);
+    gameTimer = setTimeout(() => {
+      if (App.checkGame) { App.checkGame(); renderSidebarStreak(); }
+      // обновить список задач в верхнем таймере (если пользователь сейчас не выбирает)
+      if (!Timer.active && document.activeElement && document.activeElement.id !== 'tb-task') renderTopbar();
+    }, 800);
   });
 
   // ---------- Запуск ----------
@@ -250,6 +323,7 @@
   App.applyTheme();
   renderPlayer();
   renderDockTimer();
+  renderTopbar();
   Timer.tick();
   App.render();
   backupReminder();
