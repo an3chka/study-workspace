@@ -1267,7 +1267,7 @@ details.callout > summary.callout-title { cursor: pointer; }
 .jobs-table td b { font-weight: 650; }
 .jobs-table tr.closed td { opacity: .6; }
 .jobs-table td.notes { max-width: 220px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; border-bottom: 0; }
-.jobs-table select { padding: 4px 6px; font-size: .84rem; border-radius: 8px; }
+.jobs-table select { width: auto; min-width: 11.5em; padding: 4px 6px; font-size: .84rem; border-radius: 8px; }
 .jobs-table select.st-reply, .jobs-table select.st-test, .jobs-table select.st-interview { background: var(--blue-soft); }
 .jobs-table select.st-offer { background: var(--good-soft); color: var(--good); }
 .jobs-table select.st-reject, .jobs-table select.st-silent { color: var(--muted); }
