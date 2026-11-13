@@ -413,7 +413,7 @@
         '<label>Что ответили<input name="reply" maxlength="200" value="' + U.esc(a.reply || '') + '" placeholder="позвали на собеседование"></label></div>' +
         '<div class="row"><label>Следующий шаг — к какому числу<input name="nextDate" type="date" value="' + U.esc(a.nextDate || '') + '"></label>' +
         '<label>Что сделать<input name="next" maxlength="200" value="' + U.esc(a.next || '') + '" placeholder="сделать тестовое"></label></div>' +
-        '<label>Заметки<textarea name="notes" rows="3" maxlength="2000">' + U.esc(a.notes || '') + '</textarea></label>' +
+        '<label>Заметки<textarea name="notes" rows="3">' + U.esc(a.notes || '') + '</textarea></label>' +
         (isNew ? '' : historyOf(a)),
       onOpen(form, close) {
         const hint = form.querySelector('.partner-hint');
@@ -588,7 +588,7 @@
       extra: isNew ? '' : '<button type="button" class="btn ghost danger-text" data-del>Удалить</button>',
       body: '<label>Название версии<input name="title" required maxlength="80" value="' + U.esc(r.title || '') + '" placeholder="ML-стажёр, весна"></label>' +
         '<label>Для каких вакансий<input name="role" maxlength="160" value="' + U.esc(r.role || '') + '" placeholder="стажировки ML / DS"></label>' +
-        '<label>Что поменяно по сравнению с другими<textarea name="changes" rows="2" maxlength="600">' + U.esc(r.changes || '') + '</textarea></label>' +
+        '<label>Что поменяно по сравнению с другими<textarea name="changes" rows="2">' + U.esc(r.changes || '') + '</textarea></label>' +
         '<label>PDF' + (r.fileName ? ' (сейчас: ' + U.esc(r.fileName) + ' — выбери новый, чтобы заменить)' : '') + '<input name="file" type="file" accept="application/pdf,.pdf"' + (isNew ? '' : '') + '></label>' +
         '<label>Ссылка (необязательно)<input name="link" type="url" maxlength="500" value="' + U.esc(r.link || '') + '" placeholder="Google Диск, hh.ru…"></label>',
       onOpen(form, close) {

@@ -223,6 +223,7 @@
           (d.lang && !study.reverse ? ' <button class="icon-btn small" data-c="speak" data-text="' + U.esc(card.front) + '" aria-label="Произнести">' + I('volume') + '</button>' : '') + '</div>' +
         (study.flipped ? '<div class="flash-back">' + U.esc(back) +
           (d.lang && study.reverse ? ' <button class="icon-btn small" data-c="speak" data-text="' + U.esc(card.front) + '" aria-label="Произнести">' + I('volume') + '</button>' : '') + '</div>' +
+          (card.more ? '<div class="flash-more"><span class="muted">также:</span> ' + U.esc(card.more) + '</div>' : '') +
           (card.note ? '<div class="flash-note muted">' + U.esc(card.note) + '</div>' : '') : '<div class="flash-hint muted">нажми или <kbd>Пробел</kbd>, чтобы увидеть ответ</div>') +
       '</div>' +
       (study.flipped ?
@@ -232,6 +233,22 @@
         '</div>' :
         '<div class="grades"><button class="btn primary big wide" data-c="flip">Показать ответ</button></div>') +
       '</div>';
+    fillMore(d, card);
+  }
+
+  const moreLoading = new Set();
+  // Для старых карточек один раз подтягиваем другие переводы из Викисловаря и запоминаем в карточке
+  function fillMore(d, card) {
+    if (card.more !== undefined || !App.ruMeanings || !/^en/.test(d.lang || '') || !S().settings.autoTranslate || navigator.onLine === false) return;
+    if (moreLoading.has(card.id)) return;
+    moreLoading.add(card.id);
+    App.ruMeanings(card.front).then((groups) => {
+      moreLoading.delete(card.id);
+      if (groups === null && navigator.onLine === false) return;
+      card.more = groups ? App.ruMoreLine(groups, card.back) : '';
+      Store.save();
+      if (card.more && study && study.queue[0] === card.id && study.flipped) App.render();
+    });
   }
 
   function answer(g) {
@@ -299,7 +316,7 @@
       body:
         '<label>Слово<input name="front" required maxlength="200" value="' + U.esc(c.front) + '"></label>' +
         '<label>Перевод<input name="back" required maxlength="300" value="' + U.esc(c.back) + '"></label>' +
-        '<label>Пример или заметка<input name="note" maxlength="300" value="' + U.esc(c.note || '') + '"></label>',
+        '<label>Пример или заметка<input name="note" maxlength="2000" value="' + U.esc(c.note || '') + '"></label>',
       extra: '<button type="button" class="btn ghost danger-text" data-x="del">Удалить</button><button type="button" class="btn ghost" data-x="reset">Учить заново</button>',
       onOpen(form, close) {
         form.querySelector('[data-x=del]').addEventListener('click', () => {
@@ -311,6 +328,7 @@
         });
       },
       onSubmit(data) {
+        if (data.front !== c.front || data.back !== c.back) delete c.more; // другие переводы подтянутся заново
         c.front = data.front; c.back = data.back; c.note = data.note;
         Store.save(); App.render();
       },

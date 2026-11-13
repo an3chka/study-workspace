@@ -133,7 +133,7 @@
             '<select name="sleepM" aria-label="Минуты сна">' + Array.from({ length: 12 }, (_, k) => '<option value="' + (k * 5) + '">' + U.pad(k * 5) + '</option>').join('') + '</select><span>мин</span></div>' +
             '<div class="sleep-row muted small">или посчитать: легла <input type="time" name="bed" aria-label="Во сколько легла"> встала <input type="time" name="wake" aria-label="Во сколько встала"></div>' +
           '</fieldset>' +
-          '<textarea name="note" rows="2" maxlength="500" placeholder="Пара слов о дне (необязательно)" aria-label="Заметка"></textarea>' +
+          '<textarea name="note" rows="2" placeholder="Пара слов о дне (необязательно)" aria-label="Заметка"></textarea>' +
           '<button class="btn primary">Сохранить отметку</button>' +
         '</form>' +
         '<p class="muted small">Отмечай сколько угодно раз в день — утром, после пар, вечером. Так видно, как меняется состояние в течение дня.</p>' +
@@ -214,7 +214,7 @@
     return '<section class="card why-card"><h2 class="h-ic">' + I('star') + ' Зачем я это делаю</h2>' +
       (why.length ? '<ul class="why-list">' + why.map((w) => '<li>' + I('heart') + '<span>' + U.esc(w.text) + '</span><button class="icon-btn small" data-m="del-why" data-id="' + w.id + '" aria-label="Удалить">' + I('x') + '</button></li>').join('') + '</ul>' :
         '<p class="muted small">Запиши, ради чего ты учишься и стараешься: мечты, цели, кем хочешь стать. В трудный день кабинет напомнит тебе об этом.</p>') +
-      '<form id="why-form" class="add-step"><input name="text" maxlength="200" placeholder="Например: хочу работать в ML и жить там, где мне нравится" aria-label="Моя причина"><button class="btn small">+</button></form>' +
+      '<form id="why-form" class="add-step"><input name="text" maxlength="2000" placeholder="Например: хочу работать в ML и жить там, где мне нравится" aria-label="Моя причина"><button class="btn small">+</button></form>' +
       '</section>';
   }
 
@@ -225,7 +225,7 @@
     return '<section class="card"><div class="card-head"><h2 class="h-ic">' + I('lightbulb') + ' Вопрос дня</h2>' +
       '<button class="btn small ghost" data-m="q-next">Другой вопрос</button></div>' +
       '<p class="q-day">' + U.esc(q) + '</p>' +
-      '<form id="refl-form" class="journal-form"><textarea name="a" rows="3" maxlength="1500" placeholder="Пиши как есть — это только для тебя"></textarea><button class="btn primary">Сохранить ответ</button></form>' +
+      '<form id="refl-form" class="journal-form"><textarea name="a" rows="3" placeholder="Пиши как есть — это только для тебя"></textarea><button class="btn primary">Сохранить ответ</button></form>' +
       (done.length ? '<div class="refl-done">' + done.map((r) => '<p class="small"><b>' + U.esc(r.q) + '</b><br>' + U.esc(r.a) + '</p>').join('') + '</div>' : '') +
       (S().reflections.length > done.length ? '<details class="small"><summary class="muted">Прошлые ответы (' + (S().reflections.length - done.length) + ')</summary>' +
         S().reflections.filter((r) => r.day !== key).slice().reverse().slice(0, 20).map((r) => '<p class="small"><span class="muted">' + U.dateLabel(r.ts) + '</span> · <b>' + U.esc(r.q) + '</b><br>' + U.esc(r.a) + '</p>').join('') + '</details>' : '') +
@@ -326,28 +326,28 @@
           '<button class="btn primary big" data-m="step-next">' + (ex.step === e.steps.length - 1 ? 'Готово ' + I('check') : 'Дальше ' + I('chevron-right')) + '</button>') + '</div>';
     } else if (e.kind === 'prompts') {
       body = '<form id="journal-form" class="journal-form">' + e.prompts.map(([q, ph], i) =>
-        '<label>' + U.esc(q) + '<textarea name="p' + i + '" rows="' + (e.prompts.length === 1 ? 8 : 3) + '" maxlength="2000" placeholder="' + U.esc(ph) + '"' + (i === 0 ? ' required' : '') + '></textarea></label>').join('') +
+        '<label>' + U.esc(q) + '<textarea name="p' + i + '" rows="' + (e.prompts.length === 1 ? 8 : 3) + '" placeholder="' + U.esc(ph) + '"' + (i === 0 ? ' required' : '') + '></textarea></label>').join('') +
         '<button class="btn primary">Сохранить</button></form>';
     } else if (e.kind === 'wheel') {
       const last = (S().journal.filter((j) => j.type === 'wheel').slice(-1)[0] || {}).scores || {};
       body = '<form id="journal-form" class="journal-form wheel-form"><p class="muted small">1 — совсем плохо, 10 — лучше не бывает. Не думай долго — первое ощущение.</p>' +
         AREAS.map((a, i) => '<label class="wheel-row"><span>' + a + '</span><input type="range" name="w' + i + '" min="1" max="10" value="' + (last[a] || 5) + '" oninput="this.nextElementSibling.textContent=this.value"><b>' + (last[a] || 5) + '</b></label>').join('') +
-        '<label>Какая сфера сейчас просит внимания и что я могу для неё сделать?<textarea name="note" rows="2" maxlength="600"></textarea></label>' +
+        '<label>Какая сфера сейчас просит внимания и что я могу для неё сделать?<textarea name="note" rows="2"></textarea></label>' +
         '<button class="btn primary">Сохранить</button></form>';
     } else if (e.kind === 'values') {
       body = '<form id="journal-form" class="journal-form"><p class="muted small">Выбери 5 ценностей, которые для тебя важнее всего.</p>' +
         '<div class="tags-pick">' + VALUES.map((v) => '<label class="chip-check"><input type="checkbox" name="v" value="' + v + '"><span>' + v + '</span></label>').join('') + '</div>' +
-        '<label>Как эти ценности видны в моих обычных днях? А где я живу против них?<textarea name="note" rows="3" maxlength="1500"></textarea></label>' +
+        '<label>Как эти ценности видны в моих обычных днях? А где я живу против них?<textarea name="note" rows="3"></textarea></label>' +
         '<button class="btn primary">Сохранить</button></form>';
     } else if (e.id === 'gratitude') {
       body = '<form id="journal-form" class="journal-form"><p class="muted">Даже мелочи считаются: вкусный кофе, солнце, сообщение от друга.</p>' +
-        [1, 2, 3].map((i) => '<input name="g' + i + '" maxlength="200" placeholder="' + i + '. Я благодарна за…" ' + (i === 1 ? 'required' : '') + '>').join('') +
+        [1, 2, 3].map((i) => '<input name="g' + i + '" maxlength="2000" placeholder="' + i + '. Я благодарна за…" ' + (i === 1 ? 'required' : '') + '>').join('') +
         '<button class="btn primary">Сохранить</button></form>';
     } else {
       body = '<form id="journal-form" class="journal-form">' +
-        '<label>Что сейчас крутится в голове? Пиши как есть, без фильтра.<textarea name="worry" rows="5" maxlength="2000" required></textarea></label>' +
-        '<label>Что из этого зависит от меня?<textarea name="control" rows="2" maxlength="600"></textarea></label>' +
-        '<label>Один маленький шаг, который я могу сделать сегодня<input name="step" maxlength="200" placeholder="например, написать преподавателю"></label>' +
+        '<label>Что сейчас крутится в голове? Пиши как есть, без фильтра.<textarea name="worry" rows="5" required></textarea></label>' +
+        '<label>Что из этого зависит от меня?<textarea name="control" rows="2"></textarea></label>' +
+        '<label>Один маленький шаг, который я могу сделать сегодня<input name="step" maxlength="2000" placeholder="например, написать преподавателю"></label>' +
         '<button class="btn primary">Сохранить и выдохнуть</button></form>';
     }
     el.innerHTML =

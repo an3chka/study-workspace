@@ -11,12 +11,24 @@
 
   const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
   const LEVEL_TXT = { A1: 'начальный', A2: 'элементарный', B1: 'средний', B2: 'выше среднего', C1: 'продвинутый' };
-  const FOCUS = [['mix', 'Смешанный'], ['grammar', 'Грамматика'], ['vocab', 'Слова'], ['speak', 'Разговорные фразы']];
+  const FOCUS = [['mix', 'Смешанный'], ['grammar', 'Грамматика'], ['vocab', 'Слова'], ['speak', 'Разговорные фразы'], ['creative', 'Творческий']];
   const HEARTS = 3;
+  // Форматы уроков — чтобы уроки не были однотипными. Каждый раз берём тот, которого давно не было.
+  const STYLES = [
+    ['story', 'мини-сериал', 'Мини-сериал: у урока есть герои и сюжет (переезд, стажировка, поездка, соседи по общежитию…). Все задания — эпизоды одной истории, сюжет развивается от задания к заданию.'],
+    ['chat', 'переписка', 'Переписка в мессенджере: задания построены на живой переписке друзей или коллег — сообщения, планы, шутки, недопонимания. Разговорный язык, как пишут носители.'],
+    ['detective', 'детектив', 'Маленький детектив: есть загадка (пропала вещь, странное письмо, кто-то соврал). Каждое задание — улика, к концу урока ответ становится понятен.'],
+    ['roleplay', 'ситуация', 'Ролевая ситуация из жизни: собеседование, кафе, аэропорт, врач, разговор с арендодателем, звонок в поддержку — шаг за шагом, с вежливыми фразами.'],
+    ['debate', 'мнения', 'Спор и мнения: тема для дискуссии (соцсети, удалёнка, ИИ в учёбе…), аргументы за и против, как соглашаться и вежливо не соглашаться.'],
+    ['facts', 'удивительные факты', 'Удивительные реальные факты о науке, животных, космосе, истории или технологиях — задания вокруг них, с «вау»-эффектом.'],
+    ['quest', 'квест', 'Квест: путешествие по локациям (город, музей, остров), за каждое задание — шаг вперёд и новая деталь мира.'],
+    ['tech', 'мир IT', 'Мир IT и ML: стажировка в tech-компании, стендап, код-ревью, переписка с тимлидом, презентация проекта — простым языком её уровня.'],
+  ];
 
   let root = null;
   let game = null;     // текущий урок
   let focus = 'mix';
+  let wishDraft = '';   // пожелание к уроку — остаётся до следующего урока
   let depth = 'normal'; // 'normal' — 10 заданий, 'deep' — разбор темы, мини-текст и 15 заданий
 
   function S() { return Store.state; }
@@ -34,26 +46,71 @@
     return words.slice(-12);
   }
 
+  // ---------- Что она уже знает ----------
+  // Знает: темы, где ответы в основном верные (или потренированные в «Теории»).
+  // Подтянуть: слабые темы из теста на уровень и темы с ошибками. Впереди: темы её уровня и следующего, которых ещё не было.
+  function topicStats() { const p = P(); p.topicStats = p.topicStats || {}; return p.topicStats; }
+  function knowledge() {
+    const all = window.GRAMMAR || [];
+    const st = topicStats();
+    const done = P().theoryDone || {};
+    const lvIdx = Math.max(0, LEVELS.indexOf(P().level || 'A2'));
+    const recentBad = {};
+    P().mistakes.slice(-40).forEach((m) => { if (m.topic) recentBad[m.topic] = (recentBad[m.topic] || 0) + 1; });
+    const weak = [], known = [], ahead = [];
+    all.forEach((t) => {
+      const s = st[t.id] || { ok: 0, bad: 0 };
+      const n = s.ok + s.bad;
+      const isWeak = ((P().weakTopics || []).includes(t.id) && s.ok < 4) || (recentBad[t.id] || 0) >= 2 || (n >= 3 && s.ok / n < 0.7);
+      if (isWeak) weak.push(t);
+      else if ((n >= 3 && s.ok / n >= 0.8) || done[t.id]) known.push(t);
+      else if (LEVELS.indexOf(t.level) <= lvIdx + 1) ahead.push(t);
+    });
+    return { weak, known, ahead };
+  }
+  App.lessonKnowledge = knowledge;
+
+  function library() { const p = P(); if (!Array.isArray(p.library)) p.library = []; return p.library; }
+  function pickStyle() {
+    const recent = library().slice(-4).map((x) => x.style);
+    const pool = STYLES.filter((x) => !recent.includes(x[0]));
+    return (pool.length ? pool : STYLES)[Math.floor(Math.random() * (pool.length || STYLES.length))];
+  }
+
   function lessonPrompt(o) {
     const prof = P();
     const recent = prof.history.slice(-8).map((h) => h.title).filter(Boolean);
     const mistakes = (o.review ? prof.mistakes.slice(-15) : prof.mistakes.slice(-6)).map((m) => '«' + m.q + '» → правильно: ' + m.right);
     const words = weakWords();
-    const focusTxt = { mix: 'смешанный (грамматика + слова)', grammar: 'грамматика', vocab: 'словарный запас', speak: 'разговорные фразы и живая речь' }[o.focus || 'mix'];
+    const focusTxt = { mix: 'смешанный (грамматика + слова)', grammar: 'грамматика', vocab: 'словарный запас', speak: 'разговорные фразы и живая речь', creative: 'творческий: больше своих текстов, мнений, историй и ролевых ситуаций' }[o.focus || 'mix'];
+    const kn = knowledge();
+    const lvIdx = Math.max(0, LEVELS.indexOf(prof.level || 'A2'));
+    const ids = (window.GRAMMAR || []).filter((t) => Math.abs(LEVELS.indexOf(t.level) - lvIdx) <= 1).map((t) => t.id + ' — ' + t.title);
+    const creative = o.focus === 'creative';
     return 'Язык: ' + langName() + '. Уровень ученицы: ' + (prof.level || 'A2') + '.\n' +
       (o.review ? 'Это урок РАБОТЫ НАД ОШИБКАМИ: построй все задания на этих ошибках (похожие, но не те же самые предложения):\n' + mistakes.join('\n') + '\n'
-        : 'Тема: ' + (o.topic ? '«' + o.topic + '»' : 'выбери сама полезную тему для этого уровня, не повторяя недавние') + '. Фокус: ' + focusTxt + '.\n' +
+        : (o.wish ? 'ПОЖЕЛАНИЕ УЧЕНИЦЫ К УРОКУ (это главное, выполни его в первую очередь; если она просит другой состав или формат заданий, тему, стиль, длину — делай так, как она просит, вместо стандартного набора ниже, но используй только типы заданий из формата JSON): «' + o.wish + '»\n' : '') +
+          'Тема: ' + (o.topic ? '«' + o.topic + '»' : o.wish ? 'по пожеланию ученицы' : 'выбери сама полезную тему для этого уровня, не повторяя недавние') + '. Фокус: ' + focusTxt + '.\n' +
           (recent.length ? 'Недавние уроки (не повторяй): ' + recent.join('; ') + '.\n' : '') +
           (mistakes.length ? 'Недавние ошибки (можно вплести 1-2 задания на них): ' + mistakes.join('; ') + '.\n' : '') +
           (words.length ? 'Слова, которые ей трудно даются (используй 2-4 из них): ' + words.join(', ') + '.\n' : '')) +
+      'Что она уже знает (опирайся на это свободно, не объясняй заново): ' + (kn.known.map((t) => t.title).join('; ') || 'пока непонятно') + '.\n' +
+      'Что даётся трудно (вплети 1-3 задания на повторение, с понятным explain): ' + (kn.weak.map((t) => t.title).join('; ') || 'нет данных') + '.\n' +
+      'Чего она ещё не проходила: ' + (kn.ahead.slice(0, 14).map((t) => t.title).join('; ') || '—') + '. Не строй задания на этих темах без объяснения; если тема урока — одна из них, объясни её в intro с нуля и простыми словами.\n' +
+      'В каждом задании укажи поле "topic" — id грамматической темы из этого списка, которую оно тренирует, или "", если ни одной: ' + ids.join('; ') + '.\n' +
       (o.deep
         ? 'Это ГЛУБОКИЙ урок. В "intro" дай настоящий разбор темы по-русски: 6-10 предложений — правило, когда используется и когда нет, 3-4 примера, 2 типичные ошибки русскоязычных и как их избежать. ' +
           'Добавь поле "passage": связный мини-текст на изучаемом языке (80-130 слов) по теме урока, интересный для студентки. ' +
           'Составь 15 заданий: 2 типа "choice" по пониманию passage (в вопросе напиши «In the text…»), 3 типа "choice", 2 типа "gap", 1 "order", 2 "error", 2 "listen", 1 "translate", 2 "open" (одно "why", одно "creative").\n'
+        : creative ? 'Составь урок из 10 заданий: 2 типа "choice", 1 "gap", 1 "error", 1 "translate", 5 типа "open" (3 "creative" — разные: история о себе, мнение, ролевая ситуация или письмо; 2 "why"). Творческие задания — интересные и личные, на которые хочется ответить развёрнуто.\n'
         : 'Составь урок из 10 заданий: 3 типа "choice", 2 типа "gap", 1 типа "order", 1 типа "error", 1 типа "listen" (диктант на слух), 1 типа "translate", 1 типа "open".\n') +
-      'Задания — по возрастанию сложности, живые примеры из жизни студентки.\n' +
+      (o.style ? 'ФОРМАТ УРОКА' + (o.wish ? ' (если не противоречит её пожеланию)' : '') + ': ' + o.style[2] + ' Придумай конкретных героев, места и детали. Все задания (и intro, если уместно) связаны этой линией — это не набор случайных предложений.\n' : '') +
+      'КАЧЕСТВО: задания разные по конструкции и словам, без повторения одного шаблона; никаких скучных «I like apples»; в "choice" все варианты правдоподобные; предложения такие, как говорят носители в жизни. ' +
+      'Количество заданий каждого типа можно менять на ±1, если так урок получится интереснее. Название урока — живое, по сюжету.\n' +
+      'Задания — по возрастанию сложности.\n' +
       'В "choice" делай ловушки: среди неверных вариантов — типичные ошибки русскоговорящих (калька с русского, лишний артикль, «I am agree» и т.п.), а в "explain" объясняй, в чём ловушка.\n' +
-      '"error" — предложение с ОДНОЙ ошибкой, которую надо найти и исправить. "open" — либо вопрос на рассуждение «почему так, а не иначе?» (kind: "why"), либо творческое задание: написать 2-3 своих предложения с темой урока (kind: "creative").\n' +
+      '"error" — предложение с ОДНОЙ ошибкой, которую надо найти и исправить. "open" — либо вопрос на рассуждение «почему так, а не иначе?» (kind: "why"), либо творческое задание (kind: "creative"): написать свой текст с темой урока — без ограничения длины, можно сколько хочется. ' +
+      'Если в творческом задании есть свобода выбора (о чём написать, какую роль взять), дай 2-3 варианта на выбор прямо в тексте задания.\n' +
       'Верни JSON строго такого вида:\n' +
       '{"title": "название урока по-русски", "intro": "объяснение темы по-русски' + (o.deep ? ' (подробный разбор)' : ', 2-4 коротких предложения, с 1-2 примерами') + '"' + (o.deep ? ', "passage": "мини-текст"' : '') + ', "exercises": [\n' +
       ' {"type": "choice", "question": "вопрос или предложение с пропуском ___", "options": ["вариант1", "вариант2", "вариант3", "вариант4"], "answer": 0, "explain": "почему так, по-русски, 1 предложение"},\n' +
@@ -90,11 +147,11 @@
         if (words.length < 3) return null;
         let sh = shuffle(words.slice());
         if (sh.join(' ') === words.join(' ')) sh = sh.reverse();
-        return { type: 'order', translation: String(e.translation || ''), answer: words.join(' '), words: sh };
+        return { type: 'order', translation: String(e.translation || ''), answer: words.join(' '), words: sh, topic: e.topic };
       }
       if (e.type === 'translate') {
         if (!e.ru || !e.answer) return null;
-        return { type: 'translate', ru: String(e.ru), answer: String(e.answer) };
+        return { type: 'translate', ru: String(e.ru), answer: String(e.answer), topic: e.topic };
       }
       if (e.type === 'listen') {
         const text = String(e.text || e.answer || '').trim();
@@ -122,40 +179,30 @@
 
   async function startLesson(btn, o) {
     if (!AI.ready() && !AI._mock) { U.toast('Подключи нейросеть: Настройки → «Нейросеть»'); location.hash = '#/settings'; return; }
-    const r = await AI.run(btn, () => AI.ask({ json: true, temperature: 0.8, system: SYSTEM, prompt: lessonPrompt(o), maxTokens: o.deep ? 9000 : 5000 }));
+    o.style = o.style || pickStyle();
+    const r = await AI.run(btn, () => AI.ask({ json: true, temperature: 0.9, system: SYSTEM, prompt: lessonPrompt(o), maxTokens: o.deep ? 9000 : 6000 }));
     if (!r) return;
     const lesson = sanitize(r);
     if (lesson.exercises.length < 3) { U.toast('Урок получился неполным. Попробуй ещё раз или выбери другую модель.'); return; }
-    game = { kind: o.review ? 'review' : 'lesson', deep: !!o.deep, lesson, i: -1, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), topicId: o.topicId };
+    // Урок сохраняется сразу — его можно пройти позже или ещё раз, даже если выйти на середине
+    const entry = { id: U.uid(), ts: Date.now(), title: lesson.title, style: o.style[0], kind: o.review ? 'review' : 'lesson', deep: !!o.deep, wish: o.wish || '', lesson, runs: 0 };
+    library().push(entry);
+    if (library().length > 40) library().splice(0, library().length - 40);
+    Store.save();
+    game = { kind: entry.kind, deep: !!o.deep, lesson, libId: entry.id, i: -1, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), topicId: o.topicId };
     if (!lesson.intro) game.i = 0;
     openGame();
   }
 
-  // Автотаймер: время урока само записывается в задачу по языку
-  function langTask() {
-    const st = S();
-    const last = {};
-    st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId]) last[x.taskId] = x.start; });
-    const langTasks = st.tasks.filter((t) => !t.archived && t.categoryId === 'lang').sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0));
-    if (langTasks[0]) return langTasks[0];
-    const t = { id: U.uid(), name: langName(), categoryId: 'lang', createdAt: Date.now(), goalMin: 0 };
-    st.tasks.push(t);
-    return t;
-  }
-  function autoTimerStart() {
-    if (S().settings.autoTimer === false || S().active) return;
-    const t = langTask();
-    S().settings.lastTask = t.id;
-    Timer.start(t.id, 'watch');
-    game.autoTaskId = t.id;
-  }
+  // Отдельный секундомер на урок больше не включаем: время уроков считает автоучёт раздела
+  // (зелёная плашка «считаю сама» сверху, только минуты). Эта функция лишь останавливает секундомер,
+  // если он остался от старой версии.
   function autoTimerStop() {
     if (game && game.autoTaskId && S().active && S().active.taskId === game.autoTaskId) Timer.stop(true);
     if (game) game.autoTaskId = null;
   }
 
   function openGame() {
-    if (game.domain !== 'ml') autoTimerStart(); // для тестов по ML время считает автоучёт раздела ML
 
     if (location.hash.startsWith('#/lessons')) App.render(); else location.hash = '#/lessons';
     window.scrollTo(0, 0);
@@ -200,6 +247,14 @@
       const lv = e.level || 'B1';
       const b = game.byLevel[lv] || (game.byLevel[lv] = { ok: 0, n: 0 });
       b.n++; if (correct) b.ok++;
+    }
+    // Счёт по грамматическим темам — по нему следующие уроки понимают, что она знает
+    if (e.topic && App.grammarTopic && App.grammarTopic(e.topic)) {
+      const ts = topicStats();
+      const t = ts[e.topic] = ts[e.topic] || { ok: 0, bad: 0 };
+      if (correct) t.ok++; else t.bad++;
+      t.ts = Date.now();
+      Store.saveSoon();
     }
     if (correct) {
       game.right++; game.combo++;
@@ -255,6 +310,8 @@
       const stars = ratio >= 0.9 ? 3 : ratio >= 0.7 ? 2 : ratio >= 0.5 ? 1 : 0;
       prof.xp += game.xp;
       prof.history.push({ ts: Date.now(), title: game.lesson.title, score: game.right, total, xp: game.xp, kind: game.kind, level: prof.level || 'A2', stars });
+      const lib = game.libId && library().find((x) => x.id === game.libId);
+      if (lib) { lib.runs = (lib.runs || 0) + 1; lib.last = { score: game.right, total, ts: Date.now() }; lib.stars = Math.max(lib.stars || 0, stars); }
       // запоминаем ошибки (последние 40)
       game.mistakes.forEach((m) => prof.mistakes.push(Object.assign({ ts: Date.now() }, m)));
       prof.mistakes = prof.mistakes.slice(-40);
@@ -289,19 +346,29 @@
   async function checkOpen(btn, mine) {
     const e = current();
     if (e.type === 'error' && norm(mine) === norm(e.answer)) return answer(true, mine);
-    const what = e.type === 'error' ? 'Задание: найти и исправить ошибку в предложении "' + e.sentence + '". Правильный вариант: "' + e.answer + '".'
+    const what = e.type === 'error' ? 'Задание: найти и исправить ошибку в предложении "' + e.sentence + '". Один из правильных вариантов (эталон): "' + e.answer + '".\n' +
+        'Засчитывай (correct: true) ЛЮБОЙ ответ, который грамматически верен, звучит естественно и сохраняет смысл, даже если ошибка исправлена иначе, чем в эталоне (другая конструкция, другое слово). ' +
+        'Не засчитывай, только если в ответе осталась ошибка, появилась новая или изменился смысл. Если ответ верный, не пиши «не совсем» и не требуй исправить «именно эту часть»: похвали и коротко покажи эталон как ещё один вариант.'
       : e.kind === 'why' ? 'Вопрос на рассуждение: ' + e.task + (e.sample ? '\nПример хорошего ответа: ' + e.sample : '') + '\nОценивай, поняла ли она суть, а не формулировку.'
         : 'Творческое задание: ' + e.task + '\nОценивай, выполнено ли задание и правильно ли использована тема; мелкие ошибки исправь, но засчитывай, если суть верна.';
     const r = await AI.run(btn, () => AI.ask({
       json: true, temperature: 0.3, system: SYSTEM,
       prompt: 'Проверь ответ ученицы (уровень ' + (P().level || 'A2') + ').\n' + what + (e.context ? '\nТекст, к которому задание:\n' + e.context.slice(0, 3500) : '') + '\nОтвет ученицы: "' + mine + '"\n' +
-        'Верни JSON: {"correct": true/false, "feedback": "2-3 предложения по-русски: что хорошо и что улучшить", "better": "исправленный или улучшенный вариант её ответа"}',
+        'Верни JSON: {"correct": true/false, "mistake": "конкретная ошибка в ответе ученицы, с цитатой; пустая строка, если ошибок нет", "feedback": "2-3 предложения по-русски: что хорошо и что улучшить", "better": "исправленный вариант её ответа; пустая строка, если ответ верный"}',
     }));
     if (!r) {
       if (e.type === 'error') return answer(false, mine, { feedback: 'Нейросеть недоступна — сравнила с правильным вариантом.' });
       return answer(true, mine, { feedback: 'Нейросеть недоступна, поэтому засчитываю. Сравни свой ответ с примером ниже.', unknown: false });
     }
-    answer(!!r.correct, mine, { feedback: r.feedback || '', better: r.better || '' });
+    answer(verdict(r, mine), mine, { feedback: r.feedback || '', better: r.better || '' });
+  }
+
+  // Нейросеть иногда пишет «неверно», но сама не может назвать ошибку (или «исправляет» ответ в него же самого).
+  // В таком случае засчитываем: ошибки нет — значит верно.
+  function verdict(r, mine) {
+    if (r.correct) return true;
+    if (r.better && mine && norm(r.better) === norm(mine)) return true;
+    return !String(r.mistake || '').trim() && 'mistake' in r;
   }
 
   // Диктант: сравниваем по словам, мелкие опечатки (1 слово из 8) прощаем
@@ -341,14 +408,14 @@
     const r = await AI.run(btn, () => AI.ask({
       json: true, temperature: 0.2, system: SYSTEM,
       prompt: 'Проверь перевод ученицы (уровень ' + (P().level || 'A2') + ').\nПо-русски: "' + e.ru + '"\nЭталон: "' + e.answer + '"\nОтвет ученицы: "' + mine + '"\n' +
-        'Засчитывай любые верные по смыслу и грамматике варианты, мелкие опечатки не считай ошибкой. ' +
-        'Верни JSON: {"correct": true/false, "feedback": "1-2 предложения по-русски: что хорошо и что исправить", "better": "исправленный вариант ответа ученицы"}',
+        'Засчитывай любые верные по смыслу и грамматике варианты, даже если они не совпадают с эталоном; мелкие опечатки не считай ошибкой. Если перевод верный, не пиши «не совсем». ' +
+        'Верни JSON: {"correct": true/false, "mistake": "конкретная ошибка в переводе, с цитатой; пустая строка, если ошибок нет", "feedback": "1-2 предложения по-русски: что хорошо и что исправить", "better": "исправленный вариант ответа ученицы; пустая строка, если он верный"}',
     }));
     if (!r) {
       // без нейросети: сравниваем с эталоном
       return answer(norm(mine) === norm(e.answer), mine, { feedback: 'Сравнила с эталоном.' });
     }
-    answer(!!r.correct, mine, { feedback: r.feedback || '', better: r.better || '' });
+    answer(verdict(r, mine), mine, { feedback: r.feedback || '', better: r.better || '' });
   }
 
   function speak(text) {
@@ -400,17 +467,51 @@
           '<div class="seg" role="group" aria-label="Фокус урока">' + FOCUS.map(([k, n]) => '<button class="' + (focus === k ? 'on' : '') + '" data-l="focus" data-v="' + k + '">' + n + '</button>').join('') + '</div>' +
           '<div class="seg" role="group" aria-label="Глубина урока"><button class="' + (depth === 'normal' ? 'on' : '') + '" data-l="depth" data-v="normal">Обычный · 10 заданий</button>' +
           '<button class="' + (depth === 'deep' ? 'on' : '') + '" data-l="depth" data-v="deep">Глубокий · разбор, текст, 15 заданий</button></div>' +
-          '<input id="lesson-topic" maxlength="100" placeholder="Тема (необязательно): путешествия, Present Perfect, small talk…" aria-label="Тема урока">' +
+          '<label class="lesson-wish">Какой урок хочешь? <span class="muted small">(необязательно)</span>' +
+            '<textarea id="lesson-topic" rows="3" placeholder="Опиши как угодно: «только творческие задания про путешествия», «Present Perfect через диалоги», «хочу поболтать о сериалах и выучить слова оттуда»…">' + U.esc(wishDraft) + '</textarea></label>' +
           '<button class="btn primary big" data-l="start">' + I('play') + ' Начать урок</button>' +
+          knowledgeHTML() +
           '<button class="btn" data-l="dictation">' + I('volume') + ' Диктант на слух (без нейросети)</button>' +
           (prof.mistakes.length >= 3 ? '<button class="btn" data-l="review">' + I('target') + ' Работа над ошибками (' + Math.min(prof.mistakes.length, 15) + ')</button>' : '') +
           '<p class="muted small">3 жизни · +10 XP за ответ, +5 за серию из 3, +20 за урок без ошибок. В уроках есть ловушки, диктант на слух, вопросы «почему?» и творческие задания.</p>' +
         '</section>' +
       '</div>' +
-      (hist.length ? '<section class="card"><h2>История</h2><ul class="lesson-hist">' + hist.map((h) =>
+      libraryHTML() +
+      (hist.length ? '<section class="card"><details><summary><b>Результаты</b> <span class="muted small">последние ' + hist.length + '</span></summary><ul class="lesson-hist">' + hist.map((h) =>
         '<li><span class="lh-stars">' + (h.kind === 'placement' ? '<span class="tag new">' + h.level + '</span>' : stars(h.stars || 0)) + '</span>' +
         '<span class="lh-title">' + U.esc(h.title) + (h.kind === 'review' ? ' <span class="tag">ошибки</span>' : '') + '</span>' +
-        '<span class="muted small">' + h.score + '/' + h.total + (h.xp ? ' · +' + h.xp + ' XP' : '') + ' · ' + U.dateLabel(h.ts) + '</span></li>').join('') + '</ul></section>' : '');
+        '<span class="muted small">' + h.score + '/' + h.total + (h.xp ? ' · +' + h.xp + ' XP' : '') + ' · ' + U.dateLabel(h.ts) + '</span></li>').join('') + '</ul></details></section>' : '');
+  }
+
+  function libraryHTML() {
+    const list = library().slice().reverse();
+    if (!list.length) return '';
+    const styleName = (id) => (STYLES.find((x) => x[0] === id) || [])[1] || '';
+    const row = (x) => '<li><span class="lh-stars">' + (x.runs ? stars(x.stars || 0) : '<span class="tag new">новый</span>') + '</span>' +
+      '<span class="lh-title">' + U.esc(x.title) + (styleName(x.style) ? ' <span class="tag">' + styleName(x.style) + '</span>' : '') + (x.kind === 'review' ? ' <span class="tag">ошибки</span>' : '') +
+        '<br><span class="muted small">' + x.lesson.exercises.length + ' ' + U.plural(x.lesson.exercises.length, ['задание', 'задания', 'заданий']) + ' · ' + U.dateLabel(x.ts) + (x.last ? ' · лучший результат ' + x.last.score + '/' + x.last.total : '') + '</span></span>' +
+      '<span class="row-btns"><button class="btn small' + (x.runs ? '' : ' primary') + '" data-l="replay" data-id="' + x.id + '">' + (x.runs ? 'Ещё раз' : 'Пройти') + '</button>' +
+      '<button class="icon-btn small" data-l="lib-del" data-id="' + x.id + '" aria-label="Удалить урок">' + I('x') + '</button></span></li>';
+    return '<section class="card"><h2>Мои уроки</h2><p class="muted small">Все уроки сохраняются — можно пройти позже или повторить.</p><ul class="lesson-hist lesson-lib">' + list.slice(0, 8).map(row).join('') + '</ul>' +
+      (list.length > 8 ? '<details><summary class="small">Ещё ' + (list.length - 8) + '</summary><ul class="lesson-hist lesson-lib">' + list.slice(8).map(row).join('') + '</ul></details>' : '') + '</section>';
+  }
+
+  function replay(id) {
+    const x = library().find((y) => y.id === id);
+    if (!x) return;
+    const lesson = JSON.parse(JSON.stringify(x.lesson));
+    game = { kind: x.kind || 'lesson', deep: !!x.deep, lesson, libId: x.id, i: lesson.intro ? -1 : 0, hearts: HEARTS, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now() };
+    openGame();
+  }
+
+  function knowledgeHTML() {
+    const kn = knowledge();
+    const chips = (list, cls) => list.map((t) => '<a class="chip ' + cls + '" href="#/theory/' + t.id + '">' + U.esc(t.title.replace(/:.*$/, '')) + '</a>').join('');
+    return '<details class="kn-map"><summary class="small">Урок учтёт: знаю <b>' + kn.known.length + '</b> · подтянуть <b>' + kn.weak.length + '</b> · ещё не было <b>' + kn.ahead.length + '</b></summary>' +
+      (kn.known.length ? '<p class="small muted">Знаю (на это урок опирается):</p><div class="topic-chips">' + chips(kn.known, 'ok') + '</div>' : '') +
+      (kn.weak.length ? '<p class="small muted">Подтянуть (будут задания на повторение):</p><div class="topic-chips">' + chips(kn.weak, 'warn') + '</div>' : '') +
+      (kn.ahead.length ? '<p class="small muted">Ещё не было (без объяснения не попадётся):</p><div class="topic-chips">' + chips(kn.ahead.slice(0, 20), '') + '</div>' : '') +
+      '<p class="muted small">Считается по твоим ответам в уроках, тесту на уровень и тренировкам в «Теории».</p></details>';
   }
 
   function stars(n) {
@@ -425,8 +526,7 @@
       '<div class="progress game-progress"><span style="width:' + (Math.max(0, game.i) / total * 100) + '%"></span></div>' +
       (game.kind === 'placement' ? '<span class="muted small">' + (game.i + 1) + '/' + total + '</span>' :
         '<span class="hearts" aria-label="Жизни: ' + game.hearts + '">' + [0, 1, 2].map((k) => '<span class="heart' + (k < game.hearts ? ' on' : '') + '">' + I('heart') + '</span>').join('') + '</span>' +
-        '<span class="xp-pill">' + game.xp + ' XP</span>') + '</div>' +
-      (game.autoTaskId && S().active && S().active.taskId === game.autoTaskId ? '<div class="auto-timer muted small">' + I('timer') + ' время идёт в «' + U.esc((Store.task(game.autoTaskId) || {}).name || '') + '» <button class="link-btn" data-l="auto-off">выключить</button></div>' : '');
+        '<span class="xp-pill">' + game.xp + ' XP</span>') + '</div>';
 
     if (game.i < 0) {
       el.innerHTML = '<div class="game">' + top + '<div class="card game-card"><h2>' + U.esc(L.title) + '</h2><div class="lesson-intro">' + App.md(L.intro) + '</div>' +
@@ -468,8 +568,8 @@
       const kind = e.type === 'error' ? 'Ловушка: найди и исправь ошибку' : e.kind === 'why' ? 'Подумай: почему?' : 'Творческое задание';
       body = '<p class="ex-kind">' + kind + '</p><p class="ex-q">' + U.esc(e.type === 'error' ? e.sentence : e.task) + '</p>' +
         (e.context ? '<details class="passage-mini"><summary class="muted small">Текст</summary><p>' + U.esc(e.context).replace(/\n/g, '<br>') + '</p></details>' : '') +
-        (e.type === 'error' ? '<p class="muted small">Напиши всё предложение правильно.</p>' : '') +
-        '<form id="open-form" class="gap-form tr-form"><textarea name="ans" rows="' + (e.type === 'error' ? 2 : 4) + '" placeholder="' + (e.type === 'error' ? 'исправленное предложение' : e.kind === 'why' ? 'объясни своими словами (можно по-русски)' : 'твой текст') + '"' + (a ? ' disabled' : '') + '>' +
+        (e.type === 'error' ? '<p class="muted small">Исправь ошибку и напиши предложение целиком. Подойдёт любой правильный вариант.</p>' : '') +
+        '<form id="open-form" class="gap-form tr-form"><textarea name="ans" rows="' + (e.type === 'error' ? 2 : e.kind === 'creative' ? 7 : 4) + '" placeholder="' + (e.type === 'error' ? 'исправленное предложение' : e.kind === 'why' ? 'объясни своими словами (можно по-русски)' : 'твой текст') + '"' + (a ? ' disabled' : '') + '>' +
         (a ? U.esc(a.mine) : (e.type === 'error' ? U.esc(e.sentence) : '')) + '</textarea>' +
         (a ? '' : '<button class="btn primary" type="submit">Проверить</button>') + '</form>';
     } else {
@@ -481,7 +581,7 @@
     if (a) {
       const right = rightText(e);
       fb = '<div class="feedback ' + (a.correct ? 'ok' : a.unknown ? 'skip' : 'bad') + '"><div class="fb-head">' + (a.correct ? I('check-circle') + ' Верно!' + (a.gain ? ' <span class="xp-pill">+' + a.gain + ' XP</span>' : '') + (game.combo >= 3 ? ' <span class="tag new">серия ' + game.combo + '</span>' : '') : a.unknown ? I('book') + ' Ничего страшного — разберём' : I('alert') + ' Не совсем') + '</div>' +
-        (e.type === 'open' ? (right ? '<p>Пример ответа: <i>' + U.esc(right) + '</i></p>' : '') : !a.correct || e.type !== 'choice' ? '<p>Правильно: <b>' + (game.domain === 'ml' ? App.md(right) : U.esc(right)) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
+        (e.type === 'open' ? (right ? '<p>Пример ответа: <i>' + U.esc(right) + '</i></p>' : '') : !a.correct || e.type !== 'choice' ? '<p>' + (a.correct && (e.type === 'error' || e.type === 'translate') && norm(a.mine) !== norm(right) ? 'Ещё можно так' : 'Правильно') + ': <b>' + (game.domain === 'ml' ? App.md(right) : U.esc(right)) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
         (a.better && !a.correct ? '<p>Твой вариант, исправленный: <i>' + U.esc(a.better) + '</i></p>' : '') +
         (a.feedback ? '<p>' + U.esc(a.feedback) + '</p>' : '') +
         (e.explain ? '<p class="muted">' + (game.domain === 'ml' ? App.md(e.explain) : U.esc(e.explain)) + '</p>' : '') +
@@ -567,7 +667,7 @@
       '<button type="button" class="btn ghost small" data-ask-clear' + (h.length ? '' : ' hidden') + '>Очистить историю</button></div>' +
       (shown.length > 8 ? '<details class="ask-older"><summary class="small">Раньше в этом окне: ' + (shown.length - 8) + ' ' + U.plural(shown.length - 8, ['сообщение', 'сообщения', 'сообщений']) + '</summary><div class="ask-log">' + shown.slice(0, -8).map(msgHTML).join('') + '</div></details>' : '') +
       '<div class="ask-log">' + shown.slice(-8).map(msgHTML).join('') + '</div>' +
-      '<form class="ask-form"><textarea name="q" rows="2" maxlength="600" placeholder="' + U.esc(placeholder || 'Задай вопрос') + '"></textarea>' +
+      '<form class="ask-form"><textarea name="q" rows="2" placeholder="' + U.esc(placeholder || 'Задай вопрос') + '"></textarea>' +
       '<div class="ask-btns"><button class="btn primary">Спросить</button><button type="button" class="btn ghost small" data-ask-copy>' + I('note') + ' Скопировать запрос</button></div></form>' +
       '<p class="muted small">Переписка сохраняется. Повторный такой же вопрос покажет ответ из истории, без запроса к нейросети. Закончился лимит? «Скопировать запрос» — и вставь в любую другую нейросеть.</p></section>';
   };
@@ -579,7 +679,15 @@
     const ta = form.querySelector('textarea');
     const logEl = () => box.querySelectorAll('.ask-log')[box.querySelectorAll('.ask-log').length - 1];
     let forceFresh = false;
-    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+    // Короткий вопрос — Enter отправляет. Для разговора и длинных ответов Enter — новая строка, а Ctrl+Enter — отправить.
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      if (opts.multiline ? (e.ctrlKey || e.metaKey) : !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+    });
+    if (opts.multiline) {
+      ta.rows = 4;
+      form.querySelector('.ask-btns').insertAdjacentHTML('beforeend', '<span class="muted small ask-keys">Enter — новая строка, Ctrl+Enter — отправить</span>');
+    }
     const recent = () => (AH()[id] || []).filter((m) => !m.cached).slice(-10).map((m) => ({ role: m.role, text: m.text }));
     // Полный текст запроса — чтобы вставить в любую другую нейросеть
     const fullPrompt = (q) => (opts.copyIntro || 'Я учу английский. Объясни, пожалуйста, по-русски и коротко, с 1–2 примерами.') + '\n\n' + contextFn() +
@@ -678,7 +786,7 @@
     switch (b.dataset.l) {
       case 'focus': focus = b.dataset.v; App.render(); break;
       case 'depth': depth = b.dataset.v; App.render(); break;
-      case 'start': startLesson(b, { focus, deep: depth === 'deep', topic: (root.querySelector('#lesson-topic') || {}).value }); break;
+      case 'start': { wishDraft = ((root.querySelector('#lesson-topic') || {}).value || '').trim(); startLesson(b, { focus, deep: depth === 'deep', wish: wishDraft }); break; }
       case 'review': startLesson(b, { review: true }); break;
       case 'placement': startPlacement(); break;
       case 'ask-open': {
@@ -691,14 +799,21 @@
           return 'Задание из урока: ' + (ex.question || ex.sentence || ex.translation || ex.ru) + '\n' +
             (ex.options ? 'Варианты: ' + ex.options.join(' / ') + '\n' : '') +
             'Правильный ответ: ' + rightText(ex) + '\nОтвет ученицы: ' + (ex.type === 'choice' && ex.options[Number(a.mine)] != null ? ex.options[Number(a.mine)] : (a.mine || '')) +
-            (a.correct ? ' (верно)' : ' (неверно)') + (ex.explain ? '\nКраткое объяснение: ' + ex.explain : '') + '\nУровень ученицы: ' + (P().level || 'неизвестен');
+            (a.correct ? ' (засчитано)' : ' (не засчитано)') + (ex.explain ? '\nКраткое объяснение: ' + ex.explain : '') + '\nУровень ученицы: ' + (P().level || 'неизвестен') +
+            (['error', 'translate', 'open'].includes(ex.type) ? '\nВажно: эталон — лишь один из правильных вариантов, а автоматическая проверка могла ошибиться. Оцени ответ ученицы сама. Если он верный, прямо скажи, что она права и задание выполнено, и не противоречь этому дальше.' : '');
         });
         holder.querySelector('textarea').focus();
         b.remove();
         break;
       }
-      case 'again': game = null; App.render(); startLesson(root.querySelector('[data-l=start]'), { focus, deep: depth === 'deep' }); break;
+      case 'again': game = null; App.render(); startLesson(root.querySelector('[data-l=start]'), { focus, deep: depth === 'deep', wish: wishDraft }); break;
       case 'home': game = null; App.render(); break;
+      case 'replay': replay(b.dataset.id); break;
+      case 'lib-del':
+        if (await App.confirm('Удалить урок «' + ((library().find((y) => y.id === b.dataset.id) || {}).title || '') + '»? Результаты и XP останутся.', 'Удалить')) {
+          P().library = library().filter((y) => y.id !== b.dataset.id); Store.save(); App.render();
+        }
+        break;
       case 'quit':
         if (game.done || game.i <= 0 || await App.confirm('Выйти из урока? Прогресс этого урока не сохранится, а записанное время останется.', 'Выйти')) { autoTimerStop(); game = null; App.render(); }
         break;

@@ -99,6 +99,7 @@
       '<a role="tab" class="' + (active === 'cards' ? 'on' : '') + '" href="#/cards">' + I('cards') + ' Карточки</a>' +
       '<a role="tab" class="' + (active === 'read' ? 'on' : '') + '" href="#/read">' + I('book') + ' Чтение</a>' +
       '<a role="tab" class="' + (active === 'lessons' ? 'on' : '') + '" href="#/lessons">' + I('sparkles') + ' Уроки</a>' +
+      '<a role="tab" class="' + (active === 'practice' ? 'on' : '') + '" href="#/practice">' + I('pen') + ' Практика</a>' +
       '<a role="tab" class="' + (active === 'theory' ? 'on' : '') + '" href="#/theory">' + I('cards') + ' Теория</a></div>';
   }
   App.langTabs = tabs;
@@ -239,6 +240,7 @@
         'If her message has mistakes, first gently show the corrected version in one line starting with "✏️ Better:", then continue the conversation. ' +
         'If she writes in Russian, answer in English and help her say it in English.',
       opener: '[начало] Start the conversation: greet me briefly and ask your first question about the text.',
+      multiline: true,
       copyIntro: 'Let’s talk in English about this text. Be my conversation partner: short replies, correct my mistakes gently, ask me questions.',
     });
     const ta = root.querySelector('[data-ask="talk-' + t.id + '"] textarea');
@@ -382,7 +384,7 @@
       '<button class="icon-btn small wp-close" data-wp="close" aria-label="Закрыть">' + I('x') + '</button></div>' +
       '<form class="wp-form">' +
         '<input name="front" value="' + U.esc(entry ? entry.card.front : o.display.toLowerCase()) + '" aria-label="Слово для карточки" maxlength="200">' +
-        '<input name="back" value="' + U.esc(entry ? entry.card.back : '') + '" placeholder="Перевод…" aria-label="Перевод" maxlength="300" required>' +
+        '<input name="back" value="' + U.esc(entry ? entry.card.back : '') + '" placeholder="Перевод…" aria-label="Перевод" maxlength="1000" required>' +
         (o.sentence ? '<label class="check small wp-ex"><input type="checkbox" name="useNote" checked> <span>пример: «' + U.esc(o.sentence) + '»</span></label>' : '') +
         '<div class="wp-more">' +
           (o.sentence ? '<button type="button" class="btn small ai-btn" data-wp="ai">' + I('sparkles') + ' Объяснить в контексте</button>' : '') +
@@ -422,11 +424,26 @@
     if (!entry && S().settings.autoTranslate && src && src !== 'ru' && navigator.onLine !== false) {
       back.placeholder = 'перевожу…';
       const myPop = pop;
-      translate(o.display, src).then((res) => {
-        if (pop !== myPop || !res) { back.placeholder = 'Перевод…'; return; }
-        if (!back.value) back.value = res.main;
+      Promise.all([translate(o.display, src), src === 'en' ? ruMeanings(o.display) : null]).then(([res, groups]) => {
+        if (pop !== myPop) return;
         back.placeholder = 'Перевод…';
-        if (res.alts.length) {
+        // Словарь даёт несколько переводов: основной — та часть речи, что совпала с переводчиком
+        if (groups) {
+          const ranked = rankGroups(groups, res && res.main);
+          if (!back.value) back.value = ranked[0].words.join(', ');
+          o.groups = groups;
+          const rest = moreLine(groups, back.value);
+          if (rest) {
+            const more = document.createElement('p');
+            more.className = 'muted small wp-more-tr';
+            more.textContent = 'ещё: ' + rest;
+            back.insertAdjacentElement('afterend', more);
+          }
+        }
+        if (!res) return;
+        if (!back.value) back.value = res.main;
+        // Если словарь нашёл слово, его вариантов достаточно — у переводчика они часто случайные
+        if (!groups && res.alts.length) {
           const box = document.createElement('div');
           box.className = 'wp-alts';
           box.innerHTML = '<span class="muted small">варианты:</span>' + res.alts.map((a) => '<button type="button" class="chip">' + U.esc(a) + '</button>').join('');
@@ -525,7 +542,9 @@
           deck = { id: U.uid(), name, lang: t.lang, direction: 'fb', created: Date.now(), cards: [] };
           S().decks.push(deck);
         }
-        deck.cards.push({ id: U.uid(), front: d.front || o.display, back: d.back, note, created: Date.now(), source: t.id });
+        const card = { id: U.uid(), front: d.front || o.display, back: d.back, note, created: Date.now(), source: t.id };
+        if (o.groups && card.front.toLowerCase() === o.display.toLowerCase()) card.more = moreLine(o.groups, card.back);
+        deck.cards.push(card);
         t.deckId = deck.id;
         setKnown(t.lang, [w], false);
         U.toast('Добавлено в «' + deck.name + '»');
@@ -565,6 +584,97 @@
       return res;
     }).catch(() => { clearTimeout(timer); return null; });
   }
+
+  // Русские переводы английского слова из Викисловаря, сгруппированные по частям речи.
+  // Отправляется только само слово. Результат: [{ pos: 'предлог', words: ['кроме', 'за исключением'] }, …] или null.
+  const RU_POS = { verb: 'глаг.', noun: 'сущ.', adjective: 'прил.', adverb: 'нареч.', preposition: 'предлог', conjunction: 'союз',
+    pronoun: 'местоим.', interjection: 'межд.', determiner: 'определитель', numeral: 'числ.', phrase: 'выражение', idiom: 'выражение',
+    'phrasal verb': 'фраз. глагол', 'prepositional phrase': 'выражение', particle: 'частица' };
+  const ruCache = new Map();
+  async function wikitext(page) {
+    const r = await fetch('https://en.wiktionary.org/w/api.php?action=parse&format=json&origin=*&prop=wikitext&redirects=1&page=' + encodeURIComponent(page));
+    if (!r.ok) return '';
+    const data = await r.json();
+    const all = (data && data.parse && data.parse.wikitext && data.parse.wikitext['*']) || '';
+    const m = all.match(/^==\s*English\s*==\s*$([\s\S]*?)(?=^==[^=]|$(?![\s\S]))/m);
+    return m ? m[1] : (/\/translations$/.test(page) ? all : '');
+  }
+  function parseRu(text) {
+    const senses = [];
+    let pos = '', gloss = '';
+    text.split('\n').forEach((line) => {
+      const h = line.match(/^={3,6}\s*([A-Za-z ]+?)\s*={3,6}\s*$/);
+      if (h) { const p = h[1].toLowerCase(); if (RU_POS[p]) pos = p; else if (/^(etymology|pronunciation)/.test(p)) pos = ''; return; }
+      const tt = line.match(/\{\{(?:trans-top|checktrans-top)(?:-also)?\|?([^}]*)\}\}/);
+      if (tt) { gloss = tt[1].replace(/\b(id|column-width)=[^|]*\|?/g, '').trim(); return; }
+      if (!pos || !/^\*:?\s*Russian\s*:/.test(line)) return;
+      const words = [];
+      line.replace(/\{\{tt?\+?\|ru\|((?:\[\[[^\]]*\]\]|[^|}])+)/g, (_, w) => {
+        const clean = w.replace(/\u0301/g, '').replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1').trim();
+        if (clean && /[а-яё]/i.test(clean) && !words.includes(clean)) words.push(clean);
+      });
+      if (words.length) senses.push({ pos, gloss, words });
+    });
+    return senses;
+  }
+  async function ruMeanings(word) {
+    const key = String(word || '').trim().toLowerCase();
+    if (!key || key.split(/\s+/).length > 4 || !/^[a-z' -]+$/.test(key)) return null;
+    if (ruCache.has(key)) return ruCache.get(key);
+    let senses = [];
+    try {
+      // У частых слов (go, take) переводы вынесены на отдельную страницу «слово/translations»
+      const load = async (page) => {
+        const text = await wikitext(page);
+        let found = parseRu(text);
+        if (/translation subpage|\/translations/.test(text)) found = found.concat(parseRu(await wikitext(page + '/translations')));
+        return { text, found };
+      };
+      const first = await load(key);
+      senses = first.found;
+      // Форма другого слова («felt» → «feel», «drawers» → «drawer»): переводы начальной формы ставим первыми
+      const lemma = (first.text.match(/\{\{[^{}|]*\bof\|en\|([^|}]+)/) || [])[1];
+      if (lemma && lemma.toLowerCase() !== key) senses = (await load(lemma)).found.concat(senses);
+    } catch (e) { return null; }
+    // По частям речи: из главного значения до двух слов, из следующих двух — по одному.
+    // Пары вроде «исключать / исключить» и «ящик / выдвижной ящик» не повторяем.
+    const byPos = new Map();
+    senses.forEach((s) => { if (!byPos.has(s.pos)) byPos.set(s.pos, []); byPos.get(s.pos).push(s.words); });
+    const similar = (a, b) => { a = a.toLowerCase(); b = b.toLowerCase(); return a === b || a.includes(b) || b.includes(a) || (a.length > 5 && b.length > 5 && a.slice(0, 5) === b.slice(0, 5)); };
+    const groups = [];
+    byPos.forEach((list, p) => {
+      const out = [];
+      list.slice(0, 3).forEach((ws, i) => {
+        let n = 0;
+        ws.forEach((w) => { if (n < (i ? 1 : 2) && out.length < 4 && !out.some((x) => similar(x, w))) { out.push(w); n++; } });
+      });
+      if (out.length) groups.push({ pos: RU_POS[p], words: out });
+    });
+    // «noticed», «started» — это глагол, хотя в словаре у начальной формы первым идёт существительное
+    if (/(ed|ing)$/.test(key)) groups.sort((a, b) => (b.pos === RU_POS.verb) - (a.pos === RU_POS.verb));
+    const res = groups.length ? groups.slice(0, 3) : null;
+    ruCache.set(key, res);
+    return res;
+  }
+  // Ставим первой ту часть речи, где есть уже известный перевод (из контекста или из карточки)
+  function rankGroups(groups, hint) {
+    const h = String(hint || '').toLowerCase().split(/[,;]\s*/).map((x) => x.trim()).filter(Boolean);
+    const hit = (g) => g.words.some((w) => h.includes(w.toLowerCase()));
+    return groups.slice().sort((a, b) => hit(b) - hit(a));
+  }
+  // Строка «ещё» для карточки: всё, чего нет в основном переводе
+  function moreLine(groups, back) {
+    const have = String(back || '').toLowerCase().split(/[,;]\s*/).map((x) => x.trim());
+    return rankGroups(groups, back).map((g) => {
+      const ws = g.words.filter((w) => !have.includes(w.toLowerCase()));
+      return ws.length ? g.pos + ' ' + ws.join(', ') : '';
+    }).filter(Boolean).join(' · ');
+  }
+  App.ruMeanings = ruMeanings;
+  App.ruMoreLine = moreLine;
+  App.ruRank = rankGroups;
+  App.mtTranslate = (str, src) => translate(str, src);
+  App.sentenceAround = (str, pos) => sentenceAround(str, pos);
 
   // Значения английского слова по частям речи (бесплатный словарь, без ключа).
   const POS = { noun: 'сущ.', verb: 'глаг.', adjective: 'прил.', adverb: 'нареч.', pronoun: 'местоим.', preposition: 'предлог', conjunction: 'союз', interjection: 'межд.' };

@@ -42,6 +42,7 @@
       why: [],               // «зачем я это делаю»
       reflections: [],       // ответы на вопрос дня
       lessons: { level: '', lang: 'en-US', history: [], mistakes: [], xp: 0 }, // уроки с нейросетью
+      writing: { diary: [], items: [], talks: [] }, // «Практика»: дневник, тексты, картинки, разговоры
       known: {},             // знакомые слова по языкам: {'en-US': ['the', ...]}
     };
   }
@@ -59,6 +60,7 @@
       if (!Array.isArray(out[k])) out[k] = base[k];
     });
     if (!out.known || typeof out.known !== 'object' || Array.isArray(out.known)) out.known = {};
+    if (!out.writing || typeof out.writing !== 'object' || Array.isArray(out.writing)) out.writing = base.writing;
     out.lessons = Object.assign({ level: '', lang: 'en-US', history: [], mistakes: [], xp: 0 }, out.lessons && typeof out.lessons === 'object' ? out.lessons : {});
     if (!out.categories.length) out.categories = defaults().categories;
     out.decks.forEach((d) => { if (!Array.isArray(d.cards)) d.cards = []; });

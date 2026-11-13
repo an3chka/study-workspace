@@ -32,11 +32,19 @@
 
   window.addEventListener('hashchange', App.render);
 
+  // Поля для текста растут вместе с текстом — можно писать сколько хочется
+  App.grow = function (t) {
+    if (!t || t.tagName !== 'TEXTAREA' || t.dataset.noGrow) return;
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight + 2, Math.round(window.innerHeight * 0.65)) + 'px';
+  };
+  document.addEventListener('input', (e) => App.grow(e.target));
+
   // ---------- Таймер сверху: на любой странице ----------
   // Сам подставляет задачу по разделу (Языки → задача по языку, Хобби → хобби…)
 
   const topbar = document.getElementById('topbar');
-  const ROUTE_CAT = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', hobby: 'hobby', ml: 'ml' };
+  const ROUTE_CAT = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', practice: 'lang', hobby: 'hobby', ml: 'ml' };
   let topPick = null; // выбранная вручную задача (до смены раздела)
 
   function suggestedTask() {
@@ -61,7 +69,7 @@
       topbar.innerHTML = '<span class="tb-dot"></span><span class="tb-time" id="tb-time">' + d.time + '</span>' +
         '<span class="tb-task">' + U.esc(d.name) + ' <small class="muted">' + U.esc(d.label) + '</small></span>' +
         (d.waiting ? '<button class="btn small primary" data-tb="resume">' + I('play') + ' Продолжить</button>' : '') +
-        '<button class="btn small" data-tb="stop">' + I('stop') + ' Стоп</button>';
+        '<button class="btn small" data-tb="stop">' + I('stop') + ' Стоп</button>' + '<button class="icon-btn tb-card" data-tb="card" title="Новая карточка: слово и перевод" aria-label="Новая карточка">' + I('cards') + '<span class="tb-card-plus">+</span></button>';
       return;
     }
     const tasks = st.tasks.filter((t) => !t.archived);
@@ -80,13 +88,15 @@
       '<button class="' + (mode === 'pomo' ? 'on' : '') + '" data-tb="mode" data-v="pomo" title="Pomodoro ' + st.settings.pomoWork + '/' + st.settings.pomoBreak + '">' + I('clock') + ' ' + st.settings.pomoWork + '</button></div>' +
       (tasks.length ? '<button class="btn small primary" data-tb="start">' + I('play') + ' Старт</button>' : '<a class="btn small" href="#/">+ Задача</a>') +
       (auto ? '<span class="tb-auto' + (auto.paused ? ' paused' : '') + '" title="Время в этом разделе считается само, пока ты занимаешься. Выключить — в Настройках.">' +
-        I(auto.paused ? 'pause' : 'timer') + ' ' + (auto.paused ? 'пауза' : 'считаю сама') + ': ' + U.esc(auto.name) + ' · <b id="tb-auto">' + U.human(auto.sec) + '</b></span>' : '');
+        I(auto.paused ? 'pause' : 'timer') + ' ' + (auto.paused ? 'пауза' : 'считаю сама') + ': ' + U.esc(auto.name) + ' · <b id="tb-auto">' + U.human(auto.sec) + '</b></span>' : '') +
+      '<button class="icon-btn tb-card" data-tb="card" title="Новая карточка: слово и перевод" aria-label="Новая карточка">' + I('cards') + '<span class="tb-card-plus">+</span></button>';
   }
 
   topbar.addEventListener('click', (e) => {
     const b = e.target.closest('[data-tb]');
     if (!b) return;
     const st = Store.state;
+    if (b.dataset.tb === 'card') { App.quickCard(); return; }
     if (b.dataset.tb === 'stop') Timer.stop();
     if (b.dataset.tb === 'resume') Timer.resume();
     if (b.dataset.tb === 'mode') { st.settings.lastMode = b.dataset.v; Store.save(); renderTopbar(); App.render(); }
@@ -105,7 +115,7 @@
   // время само пишется в подходящую задачу. Без действий 1 минуту — пауза,
   // и время после последнего действия не засчитывается. При смене раздела запись закрывается сразу.
 
-  const AUTO_ROUTES = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', ml: 'ml' };
+  const AUTO_ROUTES = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', practice: 'lang', ml: 'ml' };
   function isMlTask(t) { return /(^|[^а-яa-z])(мл|ml)([^а-яa-z]|$)|машинн|machine|нейросет/i.test(t.name) || !!(App.mlTaskRe && App.mlTaskRe.test(t.name)); }
   const IDLE_MS = 60 * 1000;
   let lastInput = Date.now();
