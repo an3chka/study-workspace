@@ -118,7 +118,8 @@
       lastInput = now;
     }, { passive: true, capture: true }));
 
-  function autoTaskFor(route) {
+  // create=false — только узнать задачу (для подписи), ничего не создавая
+  function autoTaskFor(route, create = true) {
     let cat = AUTO_ROUTES[route];
     if (route === 'lessons' && App.gameDomain && App.gameDomain() === 'ml') cat = 'ml';
     if (!cat) return null;
@@ -126,6 +127,7 @@
     if (cat === 'ml') {
       const ml = st.tasks.filter((t) => !t.archived && isMlTask(t));
       if (ml.length) return ml.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      if (!create) return { id: null, name: 'МЛ' };
       const t = { id: U.uid(), name: 'МЛ', categoryId: 'study', createdAt: Date.now(), goalMin: 0 };
       st.tasks.push(t);
       return t;
@@ -135,6 +137,7 @@
     const list = st.tasks.filter((t) => !t.archived && t.categoryId === cat).sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0));
     if (list[0]) return list[0];
     if (cat !== 'lang') return null;
+    if (!create) return { id: null, name: 'Английский' };
     const t = { id: U.uid(), name: 'Английский', categoryId: 'lang', createdAt: Date.now(), goalMin: 0 };
     st.tasks.push(t);
     return t;
@@ -143,10 +146,10 @@
   function autoInfo() {
     const st = Store.state;
     if (st.settings.autoTrack === false || Timer.active || !AUTO_ROUTES[routeName()]) return null;
-    const s = st.autoSessId && st.sessions.find((x) => x.id === st.autoSessId);
-    const task = s ? Store.task(s.taskId) : null;
-    const name = task ? task.name : 'Английский';
-    const todaySec = Stats.sum(Stats.inRange(U.startOfDay(Date.now()), Date.now() + 1).filter((x) => x.kind === 'auto' && (!s || x.taskId === s.taskId)));
+    // подпись — по задаче ТЕКУЩЕГО раздела (а не по последней записи, которая могла быть из другого раздела)
+    const task = autoTaskFor(routeName(), false);
+    const name = task ? task.name : '';
+    const todaySec = Stats.sum(Stats.inRange(U.startOfDay(Date.now()), Date.now() + 1).filter((x) => x.kind === 'auto' && task && x.taskId === task.id));
     const paused = document.hidden || Date.now() - lastInput > IDLE_MS;
     return { name, sec: todaySec, paused };
   }
@@ -185,6 +188,7 @@
       st.autoSessId = s.id;
     }
     Store.saveSoon();
+    if (leaving) return; // досчитали прошлый раздел — подпись сверху уже показывает новый
     const el = document.getElementById('tb-auto');
     if (el) el.textContent = U.human(Stats.sum(Stats.inRange(U.startOfDay(now), now + 1).filter((x) => x.kind === 'auto' && x.taskId === task.id)));
   }

@@ -12,7 +12,7 @@
   function privateSection() {
     const files = App.privateFiles ? App.privateFiles() : [];
     const local = App.privateLocal || [];
-    return '<section class="card"><h2 class="h-ic">' + I('lock') + ' Личные материалы</h2>' +
+    return '<section class="card private-card" id="private-section"><h2 class="h-ic">' + I('lock') + ' Личные материалы</h2>' +
       '<p>Файлы, которые не выложены на сайт (например, свои задания курса). Подключённый файл хранится <b>только в этом браузере</b>, никуда не отправляется и не попадает в экспорт.</p>' +
       (files.length ? '<ul class="key-list">' + files.map((f) => '<li>' + I('check') + '<span>' + U.esc(f.name) + ' · ' + Math.round(f.size / 1024) + ' КБ · с ' + U.dateLabel(f.ts) + '</span></li>').join('') + '</ul>'
         : local.length ? '<p class="muted small">Сайт открыт с этого компьютера — подхвачено из папки private/: ' + local.map(U.esc).join(', ') + '.</p>'
@@ -24,11 +24,13 @@
 
   function render(el) {
     root = el;
+    if (/\/private$/.test(location.hash)) setTimeout(() => { const x = el.querySelector('#private-section'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
     const st = S().settings;
     const archived = S().tasks.filter((t) => t.archived);
     const counts = 'задач: ' + S().tasks.length + ', записей времени: ' + S().sessions.length + ', колод: ' + S().decks.length + ', целей хобби: ' + S().hobbies.length;
     el.innerHTML =
       '<header class="page-head"><div><h1>Настройки</h1><p class="muted">Всё сохраняется автоматически</p></div></header>' +
+      privateSection() +
 
       '<div class="grid-2">' +
       '<section class="card"><h2>Цель и таймер</h2><form id="settings-form" class="settings-form">' +
@@ -89,7 +91,6 @@
         '</div>' +
         '<p class="muted small">' + (st.lastBackup ? 'Последний экспорт: ' + U.dateLabel(st.lastBackup) + ' ' + new Date(st.lastBackup).getFullYear() : 'Резервных копий ещё не было') + '. Импорт заменяет текущие данные содержимым файла.</p>' +
       '</section>' +
-      privateSection() +
 
       '<div class="grid-2">' +
       '<section class="card"><h2 class="h-ic">' + I('phone') + ' На телефон</h2>' +

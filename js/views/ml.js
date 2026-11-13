@@ -236,7 +236,7 @@ elif TEST_CODE:
         '<div class="kpi card"><span class="kpi-label">Тем изучено</span><span class="kpi-value">' + topics().filter((t) => pr.quiz[t.id] >= 50).length + '/' + topics().length + '</span><span class="kpi-sub">тест ≥ 50%</span></div>' +
         '<div class="kpi card"><span class="kpi-label">Вопросы собеса</span><span class="kpi-value">' + known + '/' + qs.length + '</span><span class="kpi-sub">отмечено «знаю»</span></div>' +
         '<div class="kpi card"><span class="kpi-label">Задачи с кодом</span><span class="kpi-value">' + solved + '/' + tasks().length + '</span><span class="kpi-sub">все тесты пройдены</span></div>' +
-      '</div>' + hwBanner() +
+      '</div>' + hwBanner() + privateHint() +
       newTopicCard() + modules().map(([m, name, desc]) => {
         const list = topics().filter((t) => t.module === m);
         return '<section class="card"><div class="card-head"><h2>' + U.esc(name) + '</h2><span class="muted small">' + U.esc(desc) + '</span></div>' +
@@ -312,6 +312,40 @@ elif TEST_CODE:
       list.slice().reverse().map((x) => '<div class="iv-past-item"><div class="muted small">' + fmtTs(x.ts) + (x.ai && x.ai.score != null ? ' · <b>' + x.ai.score + '/10</b>' : '') + '</div><p>' + U.esc(x.text) + '</p></div>').join('') + '</details>';
   }
 
+
+  // ---------- Шаблон вопроса для личных материалов: нейросеть на сайте выключена, текст копируется вручную ----------
+  function templateBoxHTML() {
+    return '<section class="card tpl-box"><h2 class="h-ic">' + I('lock') + ' Вопрос по своим материалам</h2>' +
+      '<p class="muted small">Для личных материалов нейросеть на сайте выключена — отсюда ничего не отправляется. Напиши вопрос, и сайт соберёт шаблон: условие, твой код и вывод тестов. ' +
+      'Скопируй его и сама реши, куда отправить. Учти: любая нейросеть, куда ты его вставишь, увидит этот текст.</p>' +
+      '<textarea class="tpl-q iv-input" rows="3" placeholder="Что непонятно? Например: «почему не проходит проверка на пустой разметке?»"></textarea>' +
+      '<label class="check"><input type="checkbox" class="tpl-hint" checked> Просить подсказку и объяснение, а не готовое решение</label>' +
+      '<div class="row-btns"><button class="btn primary" data-ml="tpl-copy">' + I('note') + ' Собрать и скопировать шаблон</button></div>' +
+      '<pre class="code-out tpl-out" hidden></pre></section>';
+  }
+  function buildTemplate(item, isTask, q, hintOnly) {
+    const strip = (x) => String(x || '').replace(/\*\*/g, '');
+    const parts = [hintOnly
+      ? 'Помоги разобраться с учебной задачей. Объясни, в чём ошибка или что почитать, и дай наводящую подсказку — но не пиши готовое решение целиком. Отвечай по-русски.'
+      : 'Помоги разобраться с учебной задачей. Объясни подробно, по-русски.'];
+    if (isTask) {
+      const ed = root.querySelector('#code-editor');
+      parts.push('Задача: ' + item.title, 'Условие: ' + strip(item.desc));
+      if (item.check) parts.push('Что должно получиться:\n- ' + item.check.join('\n- '));
+      parts.push('Мой код:\n```python\n' + ((ed && ed.value) || '').trim() + '\n```');
+      if (codeFor === item.id && codeOut) parts.push('Вывод тестов:\n```\n' + codeOut + (codeTb ? '\n\n' + codeTb : '') + '\n```');
+    } else {
+      parts.push('Тема: ' + item.title, 'Конспект:\n' + item.theory.map(strip).join('\n'));
+    }
+    parts.push('Мой вопрос: ' + (q || '…'));
+    return parts.join('\n\n');
+  }
+  // Подсказка: где подключить свои файлы (если на этом устройстве ещё ничего не подключено)
+  function privateHint() {
+    if ((App.privateFiles && App.privateFiles().length) || (App.privateLocal && App.privateLocal.length)) return '';
+    return '<a class="card hw-banner private-hint" href="#/settings/private">' + I('lock') + '<div><b>Свои материалы</b>' +
+      '<small>Задачи и темы, которых нет на сайте, лежат у тебя в папке private/. Подключи их здесь: Настройки → Личные материалы → «Подключить файлы». Они хранятся только в этом браузере.</small></div>' + I('chevron-right') + '</a>';
+  }
   function hwTasks() { return tasks().filter((t) => t.module === 'track'); }
   function hwBanner() {
     const hw = window.ML_TRACK;
@@ -344,7 +378,7 @@ elif TEST_CODE:
           '<p class="muted small">Сравни: что совпало, что упустила? Честно отметь:</p>' +
           '<div class="row-btns"><button class="btn small" data-ml="iv-known" data-id="' + id + '">' + I('check') + ' Знаю</button>' +
             '<button class="btn small" data-ml="iv-again" data-id="' + id + '">Повторить</button>' +
-            (mine ? '<button class="btn small ai-btn" data-ml="iv-ai" data-id="' + id + '">' + I('sparkles') + ' Оценить мой ответ</button>' : '') +
+            (mine && !(q.topic && q.topic.private) ? '<button class="btn small ai-btn" data-ml="iv-ai" data-id="' + id + '">' + I('sparkles') + ' Оценить мой ответ</button>' : '') +
             '<button class="btn small ghost" data-ml="iv-retry" data-id="' + id + '">Ответить заново</button></div>' +
           '<div class="iv-fb">' + (() => { const e = mine && ansHist(q.id).filter((x) => x.ai && normText(x.text) === normText(mine)).pop(); return e ? fbHTML(e.ai, fmtTs(e.ai.ts || e.ts)) : ''; })() + '</div>' +
           pastAnswersHTML(q.id, mine)
@@ -446,11 +480,11 @@ elif TEST_CODE:
         (t.key && t.key.length ? '<section class="card"><h2>Главное запомнить</h2><ul class="key-list">' + t.key.map((k) => '<li>' + I('check') + '<span>' + App.md(k) + '</span></li>').join('') + '</ul></section>' : '') +
         (myNotes.length ? '<section class="card"><h2 class="h-ic">' + I('note') + ' Твои конспекты по теме</h2><div class="note-list">' +
           myNotes.map((n) => '<a class="note-link" href="#/ml/n/' + encodeURIComponent(n) + '"><b>' + U.esc(n.replace(/^\d\d\s+/, '')) + '</b></a>').join('') + '</div></section>' : '') +
-        '<section class="card deep-card"><div class="card-head"><h2 class="h-ic">' + I('book') + ' Разбор глубже</h2>' +
+        (t.private ? '' : '<section class="card deep-card"><div class="card-head"><h2 class="h-ic">' + I('book') + ' Разбор глубже</h2>' +
           (pr.deep[t.id] ? '<button class="btn small ghost" data-ml="deep-del">Удалить разбор</button>' : '') + '</div>' +
           (pr.deep[t.id] ? '<div class="note-body deep-body" id="deep-body"><p class="muted">Загружаю…</p></div>'
             : '<p class="muted small">Нейросеть напишет подробный разбор' + (myNotes.length ? ' с опорой на твои конспекты' : '') + ': интуиция, строгая математика с выводом, пример на числах, код, подводные камни, вопросы с собеседований и что почитать. Разбор сохранится здесь.</p>' +
-              '<button class="btn ai-btn" data-ml="deep">' + I('sparkles') + ' Разобрать глубже</button>') + '</section>' +
+              '<button class="btn ai-btn" data-ml="deep">' + I('sparkles') + ' Разобрать глубже</button>') + '</section>') +
         (topicQs.length ? '<section class="card"><h2 class="h-ic">' + I('sparkles') + ' Вопросы с собеседований (' + topicQs.length + ')</h2>' +
           '<p class="muted small">Ответь своими словами, потом сравни с эталоном. Все вопросы — во вкладке «Собеседование».</p>' +
           '<div class="iv-list">' + topicQs.map((q) => ivCardHTML(q, false)).join('') + '</div></section>' : '') +
@@ -458,16 +492,16 @@ elif TEST_CODE:
           (t.quiz && t.quiz.length ? '<button class="btn primary" data-ml="quiz">' + I('target') + ' Тест по теме (' + t.quiz.length + ')</button>' : '') +
           related.map((x) => '<a class="btn" href="#/ml/code/' + x.id + '">' + I('code') + ' ' + U.esc(x.title) + (pr.solved[x.id] ? ' ✓' : '') + '</a>').join('') +
           (hwRel.length ? '<a class="btn" href="#/ml/code">' + I('target') + ' ' + U.esc((window.ML_TRACK || {}).short || 'Трек') + ': задачи по теме (' + hwRel.length + ')</a>' : '') +
-          App.mlBankBtns('topic:' + t.id, 'data-ml', 'ai-quiz', 'ai-quiz-saved', 'Ещё вопросы от нейросети') +
+          (t.private ? '' : App.mlBankBtns('topic:' + t.id, 'data-ml', 'ai-quiz', 'ai-quiz-saved', 'Ещё вопросы от нейросети')) +
           (t.custom ? '<button class="btn ghost" data-ml="del-topic">Удалить тему</button>' : '') +
         '</div>' + (pr.quiz[t.id] != null ? '<p class="muted small">Лучший результат теста: ' + pr.quiz[t.id] + '%</p>' : '') + '</section>' +
-        App.askBoxHTML('ml-' + t.id, 'Спросить про эту тему', 'Например: «объясни на примере, чем bias отличается от variance»') +
+        (t.private ? templateBoxHTML() : App.askBoxHTML('ml-' + t.id, 'Спросить про эту тему', 'Например: «объясни на примере, чем bias отличается от variance»')) +
       '</div>';
     if (pr.deep[t.id]) {
       App.loadMarked().then(() => { const b = el.querySelector('#deep-body'); if (b) { b.innerHTML = App.renderNoteMd(pr.deep[t.id]); App.enhanceNote(b); } })
         .catch(() => { const b = el.querySelector('#deep-body'); if (b) b.innerHTML = App.md(pr.deep[t.id]); });
     }
-    App.bindAskBox(el, 'ml-' + t.id, () => 'Тема: «' + t.title + '».\nКонспект:\n' + t.theory.join('\n'), {
+    if (!t.private) App.bindAskBox(el, 'ml-' + t.id, () => 'Тема: «' + t.title + '».\nКонспект:\n' + t.theory.join('\n'), {
       system: 'Ты — сильный и терпеливый преподаватель машинного обучения для студентки 3 курса, которая изучает компьютерное зрение. Объясняй по-русски, понятно, с интуицией, формулами и маленьким примером кода на numpy/PyTorch, если уместно. Коротко (до 200 слов). Если спрашивают про задание курса — давай идеи и подсказки, но не готовое решение целиком.',
       copyIntro: 'Объясни, пожалуйста, по-русски, с интуицией и примером:',
     });
@@ -562,6 +596,7 @@ elif TEST_CODE:
 
   function renderTasks(el) {
     el.innerHTML = header('Задачи на Python — запускаются прямо в браузере, проверка тестами') + tabs('code') +
+      privateHint() +
       '<a class="card hw-banner play-banner" href="#/ml/play">' + I('play') + '<div><b>Песочница Python</b><small>Просто запусти код с numpy и посмотри вывод — без задач и тестов</small></div>' + I('chevron-right') + '</a>' + hwSection() +
       (window.ML_MODULES || []).map(([m, name]) => {
         const list = tasks().filter((t) => t.module === m);
@@ -711,12 +746,12 @@ elif TEST_CODE:
         (topic(t.topic) ? '<a class="small" href="#/ml/t/' + t.topic + '">' + I('book') + ' Теория: ' + U.esc(topic(t.topic).title) + '</a>' : '') + '</section>' +
       (t.local ? '<section class="card"><h2 class="h-ic">' + I('check') + ' Чек-лист: что должно получиться</h2><ul class="check-list">' +
         t.check.map((c, i) => '<li><label><input type="checkbox" data-ml-check="' + i + '"' + (checks[i] ? ' checked' : '') + '> <span>' + App.md(c) + '</span></label></li>').join('') + '</ul>' +
-        '<p class="muted small">Это PyTorch — он не запускается в браузере. Пиши здесь или сразу в своём файле (например, новой версией рядом со старой), запускай у себя, а проверить код можно нейросетью.</p></section>' : '') +
+        '<p class="muted small">Это PyTorch — он не запускается в браузере. Пиши здесь или сразу в своём файле (например, новой версией рядом со старой), запускай у себя' + (t.private ? '. Вопрос по задаче — через шаблон ниже.' : ', а проверить код можно нейросетью.') + '</p></section>' : '') +
       '<div class="code-grid"><section class="card code-card">' +
         '<textarea id="code-editor" class="code-editor" spellcheck="false" autocapitalize="off" autocomplete="off">' + U.esc(code) + '</textarea>' +
         '<div class="row-btns code-btns">' +
           (t.local
-            ? '<button class="btn primary ai-btn" data-ml="ai-review">' + I('sparkles') + ' Проверить код нейросетью</button>' +
+            ? (t.private ? '' : '<button class="btn primary ai-btn" data-ml="ai-review">' + I('sparkles') + ' Проверить код нейросетью</button>') +
               '<button class="btn" data-ml="copy-code">' + I('note') + ' Скопировать</button>' +
               '<button class="btn" data-ml="mark-done">' + I('check') + (pr.solved[t.id] ? ' Снять отметку' : ' Сделала') + '</button>'
             : '<button class="btn primary" data-ml="run">' + I('play') + ' Запустить тесты</button>') +
@@ -730,7 +765,7 @@ elif TEST_CODE:
           '<p class="muted small">Тесты выполняются после твоего кода. Каждая проверка идёт отдельно: «✓» — прошла, «✗» — нет, в конце итог. Номера строк в ошибке — по этому тексту.</p></details>') +
         '<div id="run-hist">' + runsHTML(t) + '</div>' +
       '</section>' + sandboxHTML(t) + '</div>' + hwNav(t) +
-      App.askBoxHTML('code-' + t.id, t.local ? 'Проверка и вопросы' : 'Спросить про задачу', t.local ? 'Например: «почему val accuracy упала после разморозки?»' : 'Например: «почему у меня не совпадает градиент?»');
+      (t.private ? templateBoxHTML() : App.askBoxHTML('code-' + t.id, t.local ? 'Проверка и вопросы' : 'Спросить про задачу', t.local ? 'Например: «почему val accuracy упала после разморозки?»' : 'Например: «почему у меня не совпадает градиент?»'));
     const ed = el.querySelector('#code-editor');
     App.codeEditorKeys(ed, () => { if (!t.local) root.querySelector('[data-ml=run]').click(); else runSandbox(t); });
     bindSandbox(el, t);
@@ -739,7 +774,7 @@ elif TEST_CODE:
       const arr = P().checks[t.id] = P().checks[t.id] || [];
       arr[+cb.dataset.mlCheck] = cb.checked; Store.saveSoon();
     }));
-    App.bindAskBox(el, 'code-' + t.id, () => 'Задача: ' + t.desc + (t.check ? '\nКритерии:\n- ' + t.check.join('\n- ') : '') +
+    if (!t.private) App.bindAskBox(el, 'code-' + t.id, () => 'Задача: ' + t.desc + (t.check ? '\nКритерии:\n- ' + t.check.join('\n- ') : '') +
       '\nМой код:\n' + (root.querySelector('#code-editor') || {}).value + (t.local ? '' : '\nПоследний вывод тестов:\n' + codeOut), {
       system: t.local
         ? 'Ты — ментор по PyTorch и компьютерному зрению. Проверяешь код студентки по критериям: что выполнено, что нет, какие ошибки или ловушки (формы тензоров, model.eval, no_grad, requires_grad, совпадение архитектуры при загрузке весов). ' + (t.context ? 'Условия: ' + t.context + ' ' : '') + 'Отвечай по-русски, коротко, списком. Не переписывай всё решение, если не просят.'
@@ -845,6 +880,15 @@ elif TEST_CODE:
         break;
       }
       case 'run': if (tk) runTask(b, tk); break;
+      case 'tpl-copy': {
+        const box = b.closest('.tpl-box'); const item = tk || t;
+        if (!box || !item) break;
+        const text = buildTemplate(item, !!tk, box.querySelector('.tpl-q').value.trim(), box.querySelector('.tpl-hint').checked);
+        const out = box.querySelector('.tpl-out'); out.hidden = false; out.textContent = text;
+        try { await navigator.clipboard.writeText(text); U.toast('Шаблон скопирован — вставь его туда, куда решишь'); }
+        catch (err) { U.toast('Не получилось скопировать — выдели текст ниже вручную'); }
+        break;
+      }
       case 'play': runSandbox(tk || PLAY); break;
       case 'play-clear': { const o = root.querySelector('#sandbox-out'); if (o) { o.className = 'code-out empty'; o.textContent = 'Здесь будет то, что выводит Python'; } const tb = root.querySelector('#sandbox-tb'); if (tb) tb.innerHTML = ''; break; }
       case 'copy-code':
