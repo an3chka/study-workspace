@@ -141,7 +141,7 @@
       (words.length ? '<div class="wr-words"><span class="muted small">Пригодится:</span>' + words.map((w) =>
         '<button type="button" class="chip" data-p="word" data-en="' + esc(w.en) + '" data-ru="' + esc(w.ru) + '" title="Добавить в карточки">' + esc(w.en) + ' — ' + esc(w.ru) + ' +</button>').join('') + '</div>' : '') +
       (fb.question ? '<p class="wr-q"><span class="muted small">Чтобы продолжить:</span> <i>' + esc(fb.question) + '</i>' +
-        (opts.askBtn ? ' <button type="button" class="link-btn" data-p="' + opts.askBtn + '" data-q="' + esc(fb.question) + '">ответить</button>' : '') + '</p>' : '') +
+        (opts.askBtn ? '<br><button type="button" class="btn small" data-p="' + opts.askBtn + '" data-q="' + esc(fb.question) + '">' + I(opts.askBtn === 'answer-q' ? 'pen' : 'globe') + (opts.askBtn === 'answer-q' ? ' Ответить в новой записи' : ' Ответить и поболтать') + '</button>' : '') + '</p>' : '') +
       '</div>';
   }
 
@@ -253,10 +253,34 @@
           '<textarea name="a' + i + '" rows="3" placeholder="твой ответ — сколько хочешь"' + (checked ? ' disabled' : '') + '>' + esc((c.answers || [])[i] || '') + '</textarea>' +
           (r ? '<div class="pr-q-fb ' + (r.ok ? 'ok' : 'bad') + '">' + (r.ok ? I('check') : I('alert')) + ' ' + esc(r.comment || '') + (r.better ? '<br><span class="small">Можно так: <i>' + esc(r.better) + '</i></span>' : '') + '</div>' : '') + '</div>';
       }).join('') +
-      (checked ? feedbackHTML(c.fb.overall && { good: c.fb.overall, words: c.fb.words, question: c.fb.question }) +
+      (checked ? feedbackHTML(c.fb.overall && { good: c.fb.overall, words: c.fb.words, question: c.fb.question }, c.follow ? {} : { askBtn: 'talk-q' }) +
         '<div class="row-btns"><button type="button" class="btn" data-p="retry-text">Ответить заново</button><button type="button" class="btn primary" data-p="new-text">Новый текст</button></div>'
         : '<div class="row-btns"><button class="btn primary">' + I('check') + ' Проверить ответы</button><button type="button" class="btn ghost small" data-p="copy-text">' + I('note') + ' Скопировать запрос</button></div>' + (ready() ? '' : noAI)) +
-      '</form>';
+      '</form>' + (checked && c.follow ? followHTML('pr-text-' + c.id) : '');
+    if (checked && c.follow) bindFollow(el, 'pr-text-' + c.id, () => 'Текст, который она прочитала:\n' + c.text + '\n\nЕё ответы на вопросы:\n' + c.questions.map((q, i) => q + ' — ' + ((c.answers || [])[i] || '')).join('\n'));
+  }
+
+  // ---------- Продолжение разговора после проверки ----------
+  // Вопрос «Чтобы продолжить» становится первым сообщением маленького чата — можно ответить и поговорить дальше.
+  function followHTML(id) {
+    return App.askBoxHTML(id, 'Продолжим по-английски', 'Answer in English — mistakes are OK!');
+  }
+  function bindFollow(el, id, ctxFn) {
+    App.bindAskBox(el, id, ctxFn, {
+      temperature: 0.7, multiline: true,
+      system: 'You are a friendly English conversation partner for a Russian-speaking university student (level ' + level() + '). ' +
+        'You have just asked her a follow-up question after an exercise (see the context). Continue a natural conversation: short replies (2-4 sentences) so that she talks more, react with real interest, sometimes share a short opinion, and end with ONE open question. ' +
+        'If her message has real mistakes, first show the corrected version of her message in one line starting with "✏️ Better:", then continue. If she writes in Russian, help her say it in English.',
+      copyIntro: 'Let’s talk in English. Be my conversation partner: short replies, correct my mistakes gently with “✏️ Better:”, ask me questions.',
+    });
+    const ta = el.querySelector('[data-ask="' + id + '"] textarea');
+    if (ta) ta.focus();
+  }
+  function seedFollow(id, question) {
+    const log = S().askLog = S().askLog || {};
+    if ((log[id] || []).length) return;
+    log[id] = [{ role: 'user', text: '[начало] Ask me a follow-up question.', ts: Date.now() }, { role: 'assistant', text: question, ts: Date.now() }];
+    Store.saveSoon();
   }
 
   async function newText(btn, topic, kind) {
@@ -326,10 +350,11 @@
       '<form class="card" id="pr-pic-form"><h2>Что ты видишь?</h2>' +
         '<details class="pr-phrases"><summary class="small">Фразы-помощники</summary><p class="small">In the picture I can see… · In the foreground / background… · On the left / right… · In the middle… · It looks like… · It seems that… · I think this place is… · It reminds me of… · The atmosphere is calm / busy / mysterious… · If I were there, I would…</p></details>' +
         '<textarea name="text" rows="6" placeholder="Describe the picture in English — as much as you like"' + (checked ? ' disabled' : '') + '>' + esc(p.text || w.picDraft || '') + '</textarea>' +
-        (checked ? feedbackHTML(p.fb, { pic: true }) + (p.desc ? '<p class="pr-reveal"><span class="muted small">Подпись из Википедии (для интереса — описывать можно по-своему):</span><br>' + esc(p.desc) + '</p>' : '') +
+        (checked ? feedbackHTML(p.fb, p.follow ? { pic: true } : { pic: true, askBtn: 'talk-q' }) + (p.desc ? '<p class="pr-reveal"><span class="muted small">Подпись из Википедии (для интереса — описывать можно по-своему):</span><br>' + esc(p.desc) + '</p>' : '') +
           '<div class="row-btns"><button type="button" class="btn" data-p="retry-pic">Описать заново</button><button type="button" class="btn primary" data-p="new-pic">Другая картинка</button></div>'
           : '<div class="row-btns"><button class="btn primary">' + I('check') + ' Проверить</button><button type="button" class="btn ghost small" data-p="copy-pic">' + I('note') + ' Скопировать запрос</button></div>' + (ready() ? '' : noAI)) +
-      '</form>';
+      '</form>' + (checked && p.follow ? followHTML('pr-pic-' + p.ts) : '');
+    if (checked && p.follow) bindFollow(el, 'pr-pic-' + p.ts, () => 'Она описывала фотографию (подпись из Википедии: «' + (p.desc || p.title) + '»). Её описание:\n' + p.text);
   }
   function picSeenContext(p) {
     return 'Задание: она описывала эту фотографию — фото приложено, посмотри на него внимательно. Подпись из Википедии для справки (она её не знает и не должна знать): «' + (p.desc || p.title) + '». ' +
@@ -397,6 +422,16 @@
       copyPrompt('Я учу английский (уровень ' + level() + '). Я описывала картинку: ' + (w.pic.desc || w.pic.title) + '\nПроверь моё описание: исправь ошибки, объясни их по-русски и подскажи полезные слова.\n\n' + t);
     }
     if (act === 'next-prompt') { w.diaryQ = ''; promptShift++; App.render(); }
+    if (act === 'talk-q') {
+      if (!ready()) { U.toast('Для разговора подключи нейросеть: Настройки → «Нейросеть»'); return; }
+      const target = sub() === 'picture' ? w.pic : w.current;
+      if (!target) return;
+      target.follow = true;
+      seedFollow(sub() === 'picture' ? 'pr-pic-' + target.ts : 'pr-text-' + target.id, b.dataset.q);
+      Store.save(); App.render();
+      const box = root.querySelector('.ask-box');
+      if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
     if (act === 'answer-q') { w.diaryQ = b.dataset.q; location.hash = '#/practice/diary'; App.render(); window.scrollTo(0, 0); }
     if (act === 'save-plain') saveDiary(null, false);
     if (act === 'del-entry') {
