@@ -6,7 +6,7 @@
   'use strict';
   const App = window.App = window.App || {};
   const KEY = 'kabinet-private-v1';
-  const LOCAL_FILES = ['private/course.js', 'private/ml-track.js'];
+  const LOCAL_FILES = ['private/course.js', 'private/ml-track.js', 'private/job.js'];
 
   function run(code, name) {
     try { new Function(code)(); return true; }

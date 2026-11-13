@@ -236,6 +236,12 @@
         if (!ok) { t.value = ''; return; }
         file.text().then((text) => {
           try {
+            const parsed = JSON.parse(text);
+            if (parsed && parsed.jobFiles) {
+              if (App.jobFilesImport) App.jobFilesImport(parsed.jobFiles);
+              delete parsed.jobFiles;
+              text = JSON.stringify(parsed);
+            }
             Store.importJSON(text);
             App.applyTheme();
             Timer.emit();
@@ -296,7 +302,11 @@
     if (b.dataset.s === 'export') {
       S().settings.lastBackup = Date.now();
       Store.save();
-      download('рабочий-кабинет-' + U.dayKey(Date.now()) + '.json', Store.exportJSON());
+      let json = Store.exportJSON();
+      // PDF резюме лежат в отдельной базе браузера — добавляем их в тот же файл
+      const files = App.jobFilesExport ? await App.jobFilesExport() : [];
+      if (files.length) { const o = JSON.parse(json); o.jobFiles = files; json = JSON.stringify(o, null, 2); }
+      download('рабочий-кабинет-' + U.dayKey(Date.now()) + '.json', json);
       App.render();
     }
     if (b.dataset.s === 'test-chime') {
