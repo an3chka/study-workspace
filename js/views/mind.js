@@ -48,6 +48,10 @@
   let histDays = 14;  // сколько дней истории показывать
   let ex = null;      // текущее упражнение
   let exTimers = [];
+  let diaryMood = 0;     // настроение к записи в дневнике (0 — не выбрано)
+  let diaryEdit = null;  // id записи, которую редактирую
+  let diaryQuery = '';
+  let wasDiary = false;
 
   function S() { return Store.state; }
 
@@ -102,6 +106,10 @@
   function render(el) {
     root = el;
     if (ex) return renderExercise(el);
+    const isDiary = location.hash.startsWith('#/mind/diary');
+    if (isDiary !== wasDiary) setTimeout(() => window.scrollTo(0, 0), 0); // сменилась страница внутри раздела
+    wasDiary = isDiary;
+    if (isDiary) return renderDiary(el);
     setTimeout(bindSupport, 0);
     const today = U.dayKey(Date.now());
     const todays = S().mood.filter((m) => m.day === today).sort((a, b) => b.ts - a.ts);
@@ -109,13 +117,14 @@
     const hasData = pts.some((p) => p.mood != null);
     const insights = App.moodInsights();
     const lowStreak = pts.slice(-4).filter((p) => p.mood != null && p.mood <= 2).length >= 3;
-    const journal = S().journal.slice().sort((a, b) => b.ts - a.ts).slice(0, 6);
+    const journal = S().journal.filter((j) => j.type !== 'diary').sort((a, b) => b.ts - a.ts).slice(0, 6);
     const practicedToday = S().practice.filter((p) => U.dayKey(p.ts) === today).length;
 
     el.innerHTML =
       '<header class="page-head"><div><h1>Самочувствие</h1><p class="muted">Замечай, как ты, — и бережно заботься о себе</p></div>' +
       '<button class="btn primary big" data-m="support">' + I('heart') + ' Мне нужна поддержка</button></header>' +
       supportPanel() +
+      diaryCardHTML() +
       '<div class="grid-2">' + whyHTML() + questionHTML() + '</div>' +
 
       (lowStreak ? '<div class="card soft-alert">' + I('heart') + ' Последние дни были тяжёлыми. Попробуй упражнение ниже, сделай перерыв или поговори с кем-то близким. ' +
@@ -157,12 +166,59 @@
 
       historyHTML(today) +
 
-      (journal.length ? '<section class="card"><h2>Дневник</h2><ul class="journal">' + journal.map((j) =>
+      (journal.length ? '<section class="card"><h2>Записи из упражнений</h2><ul class="journal">' + journal.map((j) =>
         '<li><div class="j-head"><span>' + (function () { const d = EXERCISES.find((x) => x.id === j.type); return I(d ? d.icon : 'note') + ' ' + U.esc(j.title || (d ? d.name : 'Запись')); })() + '</span><span class="muted small">' + U.dateLabel(j.ts) + '</span>' +
         '<button class="icon-btn small" data-m="del-journal" data-id="' + j.id + '" aria-label="Удалить запись">' + I('x') + '</button></div>' +
         '<div class="j-text">' + U.esc(j.text).replace(/\n/g, '<br>') + '</div></li>').join('') + '</ul></section>' : '') +
 
       '<p class="hint muted small">Записи хранятся только в этом браузере. Это не медицинский инструмент: если тебе долго плохо — обратись к специалисту.</p>';
+  }
+
+  // ---------- Дневник: просто выгрузить мысли ----------
+  const DIARY_HINTS = ['Что я сейчас чувствую?', 'Что сегодня было хорошего, даже маленького?', 'Что крутится в голове?', 'Чего мне сейчас хочется?', 'За что я могу себя похвалить?', 'Что меня сегодня удивило?'];
+  function diaryEntries() { return S().journal.filter((j) => j.type === 'diary').sort((a, b) => b.ts - a.ts); }
+
+  function diaryCardHTML() {
+    const list = diaryEntries();
+    const last = list[0];
+    return '<section class="card diary-card"><div class="card-head"><h2 class="h-ic">' + I('pen') + ' Дневник</h2>' +
+      '<a class="btn primary" href="#/mind/diary">' + I('pen') + ' ' + (list.length ? 'Открыть дневник' : 'Начать дневник') + '</a></div>' +
+      (last ? '<p class="muted small">Последняя запись — ' + U.dateLabel(last.ts) + ', ' + U.timeLabel(last.ts) + ' · всего ' + list.length + ' ' + U.plural(list.length, ['запись', 'записи', 'записей']) + '</p>'
+        : '<p class="muted small">Место, где можно просто выгрузить мысли — без правил, без проверки, только для тебя.</p>') + '</section>';
+  }
+
+  function renderDiary(el) {
+    const all = diaryEntries();
+    const q = diaryQuery.trim().toLowerCase();
+    const list = q ? all.filter((j) => j.text.toLowerCase().includes(q)) : all;
+    const editing = diaryEdit && all.find((j) => j.id === diaryEdit);
+    const draft = editing ? editing.text : (S().diaryDraft || '');
+    const mood = editing ? (editing.mood || 0) : diaryMood;
+    const byDay = [];
+    list.forEach((j) => { const k = U.dayKey(j.ts); const g = byDay[byDay.length - 1]; if (g && g.key === k) g.items.push(j); else byDay.push({ key: k, ts: j.ts, items: [j] }); });
+    el.innerHTML =
+      '<header class="page-head"><div><a class="link-btn" href="#/mind">‹ Самочувствие</a><h1>Мой дневник</h1><p class="muted">Пиши как есть — это видишь только ты</p></div></header>' +
+      '<form class="card diary-form" id="diary-form">' +
+        (editing ? '<p class="muted small">Редактирую запись от ' + U.dateLabel(editing.ts) + ', ' + U.timeLabel(editing.ts) + '</p>' : '<p class="muted small">' + U.weekday(Date.now()) + ', ' + U.dateLabel(Date.now()) + '</p>') +
+        '<textarea name="text" rows="10" placeholder="Что у тебя на душе?" aria-label="Запись в дневник">' + U.esc(draft) + '</textarea>' +
+        '<div class="diary-row"><span class="muted small">Настроение (необязательно):</span><div class="diary-moods">' +
+          [1, 2, 3, 4, 5].map((v) => '<button type="button" class="diary-mood' + (mood === v ? ' on' : '') + '" data-m="diary-mood" data-v="' + v + '" title="' + MOOD_TXT[v] + '" aria-label="' + MOOD_TXT[v] + '">' + MOODS[v] + '</button>').join('') + '</div></div>' +
+        '<details class="diary-hints"><summary class="small">Не знаешь, с чего начать?</summary><div class="topic-chips">' +
+          DIARY_HINTS.map((h) => '<button type="button" class="chip" data-m="diary-hint" data-t="' + U.esc(h) + '">' + U.esc(h) + '</button>').join('') + '</div></details>' +
+        '<div class="row-btns"><button class="btn primary">' + I('check') + ' ' + (editing ? 'Сохранить изменения' : 'Сохранить запись') + '</button>' +
+          (editing ? '<button type="button" class="btn" data-m="diary-cancel">Отмена</button>' : '') + '</div>' +
+      '</form>' +
+      (all.length ? '<section class="card"><div class="card-head"><h2>Записи <span class="muted small">' + all.length + '</span></h2>' +
+        (all.length > 5 ? '<input type="search" class="diary-search" placeholder="Поиск по записям" value="' + U.esc(diaryQuery) + '" aria-label="Поиск по записям">' : '') + '</div>' +
+        (byDay.length ? byDay.map((g) => '<div class="diary-day"><h3>' + U.esc(U.weekday(g.ts)) + ', ' + U.dateLabel(g.ts) + '</h3>' + g.items.map((j) =>
+          '<article class="diary-entry"><div class="diary-entry-head"><span class="muted small">' + U.timeLabel(j.ts) + '</span>' + (j.mood ? '<span class="diary-face" title="' + MOOD_TXT[j.mood] + '">' + MOODS[j.mood] + '</span>' : '') +
+            '<span class="spacer"></span><button class="icon-btn small" data-m="diary-edit" data-id="' + j.id + '" aria-label="Изменить запись">' + I('pencil') + '</button>' +
+            '<button class="icon-btn small" data-m="diary-del" data-id="' + j.id + '" aria-label="Удалить запись">' + I('x') + '</button></div>' +
+            '<div class="j-text">' + U.esc(j.text).replace(/\n/g, '<br>') + '</div></article>').join('') + '</div>').join('')
+          : '<p class="muted">Ничего не нашлось.</p>') + '</section>' : '') +
+      '<p class="hint muted small">Записи хранятся только в этом браузере (и в файле экспорта, если ты его делаешь).</p>';
+    const ta = el.querySelector('#diary-form textarea');
+    if (ta) { App.grow && App.grow(ta); if (!q) ta.focus(); }
   }
 
   // Все отметки по дням (кроме сегодняшних — они выше)
@@ -473,6 +529,35 @@
         break;
       }
       case 'hist-more': histDays += 14; App.render(); break;
+      case 'diary-mood': {
+        const v = Number(b.dataset.v);
+        const cur = diaryEdit ? (S().journal.find((x) => x.id === diaryEdit) || {}) : null;
+        if (cur) cur.pendingMood = cur.pendingMood === v ? 0 : v;
+        diaryMood = diaryMood === v && !cur ? 0 : v;
+        root.querySelectorAll('.diary-mood').forEach((x) => x.classList.toggle('on', Number(x.dataset.v) === (cur ? cur.pendingMood : diaryMood)));
+        break;
+      }
+      case 'diary-hint': {
+        const ta = root.querySelector('#diary-form textarea');
+        ta.value = (ta.value ? ta.value.replace(/\s*$/, '') + '\n\n' : '') + b.dataset.t + '\n';
+        S().diaryDraft = diaryEdit ? S().diaryDraft : ta.value; Store.saveSoon();
+        App.grow(ta); ta.focus();
+        break;
+      }
+      case 'diary-edit': diaryEdit = b.dataset.id; App.render(); window.scrollTo(0, 0); break;
+      case 'diary-cancel': {
+        const cur = S().journal.find((x) => x.id === diaryEdit); if (cur) delete cur.pendingMood;
+        diaryEdit = null; App.render(); break;
+      }
+      case 'diary-del': {
+        const j = S().journal.find((x) => x.id === b.dataset.id);
+        if (!j || !(await App.confirm('Удалить эту запись из дневника?'))) break;
+        S().journal = S().journal.filter((x) => x.id !== j.id);
+        if (diaryEdit === j.id) diaryEdit = null;
+        Store.save(); App.render();
+        U.toastUndo('Запись удалена', () => { S().journal.push(j); Store.save(); App.render(); });
+        break;
+      }
       case 'del-journal': {
         const j = S().journal.find((x) => x.id === b.dataset.id);
         if (!j || !(await App.confirm('Удалить запись из дневника?'))) break;
@@ -485,6 +570,25 @@
 
   document.addEventListener('submit', (e) => {
     if (!root || !root.contains(e.target)) return;
+    if (e.target.id === 'diary-form') {
+      e.preventDefault();
+      const text = (e.target.querySelector('textarea').value || '').trim();
+      if (!text) { U.toast('Напиши хоть пару слов'); return; }
+      const cur = diaryEdit && S().journal.find((x) => x.id === diaryEdit);
+      if (cur) {
+        cur.text = text;
+        if (cur.pendingMood !== undefined) { cur.mood = cur.pendingMood || undefined; delete cur.pendingMood; }
+        cur.edited = Date.now();
+        diaryEdit = null;
+        U.toast('Запись обновлена');
+      } else {
+        S().journal.push({ id: U.uid(), ts: Date.now(), type: 'diary', title: 'Дневник', text, mood: diaryMood || undefined });
+        S().diaryDraft = ''; diaryMood = 0;
+        U.toast('Записано. Спасибо, что выговорилась');
+      }
+      Store.save(); App.render();
+      return;
+    }
     if (e.target.id === 'why-form') {
       e.preventDefault();
       const text = U.formData(e.target).text;
@@ -538,6 +642,18 @@
   });
 
   // «Легла / встала» → сразу подставляем часы и минуты сна
+  // Черновик дневника не теряется, если уйти со страницы
+  document.addEventListener('input', (e) => {
+    if (!root || !e.target.form || e.target.form.id !== 'diary-form' || diaryEdit) return;
+    S().diaryDraft = e.target.value; Store.saveSoon();
+  });
+  document.addEventListener('input', (e) => {
+    if (!root || !e.target.classList || !e.target.classList.contains('diary-search')) return;
+    diaryQuery = e.target.value;
+    const pos = e.target.selectionStart;
+    App.render();
+    const s = root.querySelector('.diary-search'); if (s) { s.focus(); s.setSelectionRange(pos, pos); }
+  });
   document.addEventListener('input', (e) => {
     if (!root || !e.target.form || e.target.form.id !== 'mood-form' || !['bed', 'wake'].includes(e.target.name)) return;
     const f = e.target.form;
@@ -551,6 +667,6 @@
 
   App.views.mind = {
     render,
-    leave() { stopEx(); ex = null; root = null; },
+    leave() { stopEx(); ex = null; root = null; diaryEdit = null; wasDiary = false; },
   };
 })();

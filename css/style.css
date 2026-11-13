@@ -1392,3 +1392,20 @@ button.quest:hover { border-color: var(--accent); }
 .q-daily { margin-top: 10px; }
 .quest .q-text { flex: 1; }
 .quest .q-text .ic { width: 15px; height: 15px; vertical-align: -2px; color: var(--accent); }
+
+/* ===== Самочувствие → Дневник ===== */
+.diary-card .card-head { margin-bottom: 4px; }
+.diary-form textarea { min-height: 220px; font-size: 1rem; line-height: 1.6; }
+.diary-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.diary-moods { display: flex; gap: 4px; }
+.diary-mood { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); display: grid; place-items: center; cursor: pointer; opacity: .65; }
+.diary-mood.on { opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
+.diary-mood .ic { width: 22px; height: 22px; }
+.diary-hints { margin: 6px 0 10px; }
+.diary-search { max-width: 220px; }
+.diary-day h3 { font-size: .95rem; margin: 14px 0 6px; color: var(--muted); font-weight: 650; }
+.diary-entry { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); margin-bottom: 8px; }
+.diary-entry-head { display: flex; align-items: center; gap: 8px; }
+.diary-face .ic { width: 18px; height: 18px; }
+.diary-entry .j-text { margin-top: 4px; line-height: 1.6; }
+.diary-card a.btn { text-decoration: none; }
