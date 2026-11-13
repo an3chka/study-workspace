@@ -1384,3 +1384,6 @@ textarea { resize: vertical; }
 @media (max-width: 640px) { .pr-grid { grid-template-columns: 1fr; } }
 .lesson-lib .row-btns { margin-left: auto; flex-wrap: nowrap; gap: 6px; }
 .lesson-lib .lh-title { flex: 1; min-width: 160px; }
+.wr-help { margin: 8px 0; }
+.wr-help ul { padding-left: 18px; margin: 4px 0 0; }
+.wr-help li { margin: 4px 0; }

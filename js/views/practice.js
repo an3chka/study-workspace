@@ -64,22 +64,62 @@
   }
 
   // ---------- Проверка письма ----------
-  const WRITING_JSON = '{"corrected": "весь её текст, исправленный: сохрани её мысли и стиль, исправь ошибки, сделай звучание естественным", ' +
-    '"notes": [{"was": "фрагмент с ошибкой из её текста", "better": "как правильно", "why": "почему, по-русски, коротко"}], ' +
+  const WRITING_JSON = '{"corrected": "весь её текст, исправленный: сохрани её мысли, содержание и стиль, исправь только язык, сделай звучание естественным", ' +
+    '"notes": [{"was": "фрагмент с ошибкой — ТОЧНАЯ цитата из её текста, символ в символ", "better": "как правильно", "why": "почему, по-русски, коротко"}], ' +
+    '"help": [{"meant": "русское слово или место, где она не знала, как сказать (цитата из её текста)", "en": "как это сказать по-английски", "note": "пояснение по-русски, если вариантов несколько"}], ' +
     '"good": "что получилось хорошо, по-русски, 1-2 предложения, конкретно", ' +
     '"words": [{"en": "полезное слово или фраза для этой темы, которой не было в тексте", "ru": "перевод"}], ' +
     '"question": "один интересный вопрос по-английски, чтобы продолжить мысль"}';
   const WRITING_RULES = 'Проверь текст русскоязычной студентки (уровень ' + '%LVL%' + ') на английском. Длина любая — читай весь текст. ' +
-    'В "notes" — до 8 самых важных ошибок (если ошибок нет — пустой массив, и прямо похвали). Не придирайся к стилю, если всё верно. ' +
+    'В "notes" — до 8 самых важных НАСТОЯЩИХ ошибок (если ошибок нет — пустой массив, и прямо похвали). Перед тем как записать ошибку, перечитай это место в её тексте: ' +
+    'не придумывай ошибок, которых нет, и не исправляй то, что написано верно. Не придирайся к стилю, если всё верно. ' +
+    'Русские слова в тексте и фразы вроде «I don’t know how to say» — это не ошибки, а просьба о помощи: подскажи английский вариант в "help". ' +
+    'Если непонятно, что она имела в виду, — не угадывай по контексту и не подставляй своё: в "help" предложи 2-3 варианта, что она могла иметь в виду, и как сказать каждый. ' +
     'В "words" — 3-5 полезных слов или фраз её уровня по теме. Отвечай только JSON:\n';
 
-  async function checkWriting(btn, context, text) {
-    return AI.run(btn, () => AI.ask({
-      json: true, temperature: 0.3,
-      system: 'Ты — добрая и точная преподавательница английского. Объясняешь по-русски, коротко и конкретно, без занудства.',
-      prompt: WRITING_RULES.replace('%LVL%', level()) + WRITING_JSON + '\n\n' + context + '\n\nЕё текст:\n"""\n' + text + '\n"""',
+  // opt.images — приложить картинку к тому же запросу; opt.fallback — текст задания, если модель картинки не принимает
+  async function checkWriting(btn, context, text, opt) {
+    opt = opt || {};
+    const ask = (ctx, images) => AI.ask({
+      json: true, temperature: 0.2, images,
+      system: 'Ты — добрая и точная преподавательница английского. Объясняешь по-русски, коротко и конкретно, без занудства. Никогда не меняешь смысл того, что написала ученица.',
+      prompt: WRITING_RULES.replace('%LVL%', level()) + WRITING_JSON + '\n\n' + ctx + '\n\nЕё текст:\n"""\n' + text + '\n"""',
       maxTokens: 4000,
-    }));
+    });
+    const fb = await AI.run(btn, async () => {
+      if (opt.images) {
+        try { const r = await ask(context, opt.images); if (r) r.saw = true; return r; }
+        catch (e) { if (!opt.fallback) throw e; } // модель не умеет смотреть картинки — проверим только язык
+      }
+      const r = await ask(opt.images ? opt.fallback : context);
+      if (r && opt.images) r.saw = false;
+      return r;
+    });
+    return fb && cleanFeedback(fb, text);
+  }
+
+  // Картинка для нейросети (base64), чтобы она её видела
+  const imgCache = new Map();
+  async function imageData(src) {
+    if (imgCache.has(src)) return imgCache.get(src);
+    const r = await fetch(src);
+    if (!r.ok) throw new Error('картинка не загрузилась');
+    const blob = await r.blob();
+    const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(blob); });
+    const out = { mime: blob.type || 'image/jpeg', data };
+    imgCache.set(src, out);
+    return out;
+  }
+
+  // Нейросеть иногда «находит» ошибку в слове, которого в тексте нет (например, «charch», когда написано «church»).
+  // Оставляем только замечания, которые цитируют её текст и что-то в нём меняют.
+  function cleanFeedback(fb, text) {
+    const n = (x) => String(x || '').toLowerCase().replace(/[’‘`]/g, "'").replace(/[“”«»]/g, '"').replace(/\s+/g, ' ').trim();
+    const src = n(text);
+    ['notes', 'content'].forEach((k) => { if (Array.isArray(fb[k])) fb[k] = fb[k].filter((x) => x && x.was && src.includes(n(x.was)) && n(x.was) !== n(x.better)); });
+    if (!Array.isArray(fb.help)) fb.help = [];
+    fb.help = fb.help.filter((x) => x && x.en);
+    return fb;
   }
 
   function feedbackHTML(fb, opts) {
@@ -91,6 +131,12 @@
       (fb.good ? '<p class="wr-good">' + I('sparkles') + ' ' + esc(fb.good) + '</p>' : '') +
       (notes.length ? '<ul class="wr-notes">' + notes.map((n) => '<li><s>' + esc(n.was) + '</s> → <b>' + esc(n.better) + '</b>' + (n.why ? '<br><span class="muted small">' + esc(n.why) + '</span>' : '') + '</li>').join('') + '</ul>'
         : '<p class="small">' + I('check') + ' Ошибок не нашлось — отлично!</p>') +
+      (fb.content && fb.content.length ? '<div class="wr-help"><span class="muted small">По картинке:</span><ul>' + fb.content.map((c) =>
+        '<li><s>' + esc(c.was) + '</s> → <b>' + esc(c.better) + '</b>' + (c.why ? '<br><span class="muted small">' + esc(c.why) + '</span>' : '') + '</li>').join('') + '</ul></div>' : '') +
+      (fb.more ? '<p class="small"><span class="muted">Ещё на фото можно заметить:</span> <i>' + esc(fb.more) + '</i></p>' : '') +
+      (opts.pic && fb.saw === false ? '<p class="muted small">Эта модель нейросети не умеет смотреть картинки, поэтому проверила только язык.</p>' : '') +
+      (fb.help && fb.help.length ? '<div class="wr-help"><span class="muted small">Как сказать:</span><ul>' + fb.help.map((h) =>
+        '<li>' + (h.meant ? esc(h.meant) + ' → ' : '') + '<b>' + esc(h.en) + '</b>' + (h.note ? '<br><span class="muted small">' + esc(h.note) + '</span>' : '') + '</li>').join('') + '</ul></div>' : '') +
       (fb.corrected ? '<details class="wr-corrected"><summary class="small">Исправленный текст целиком</summary><p>' + esc(fb.corrected).replace(/\n/g, '<br>') + '</p></details>' : '') +
       (words.length ? '<div class="wr-words"><span class="muted small">Пригодится:</span>' + words.map((w) =>
         '<button type="button" class="chip" data-p="word" data-en="' + esc(w.en) + '" data-ru="' + esc(w.ru) + '" title="Добавить в карточки">' + esc(w.en) + ' — ' + esc(w.ru) + ' +</button>').join('') + '</div>' : '') +
@@ -280,13 +326,22 @@
       '<form class="card" id="pr-pic-form"><h2>Что ты видишь?</h2>' +
         '<details class="pr-phrases"><summary class="small">Фразы-помощники</summary><p class="small">In the picture I can see… · In the foreground / background… · On the left / right… · In the middle… · It looks like… · It seems that… · I think this place is… · It reminds me of… · The atmosphere is calm / busy / mysterious… · If I were there, I would…</p></details>' +
         '<textarea name="text" rows="6" placeholder="Describe the picture in English — as much as you like"' + (checked ? ' disabled' : '') + '>' + esc(p.text || w.picDraft || '') + '</textarea>' +
-        (checked ? feedbackHTML(p.fb) + (p.desc ? '<p class="pr-reveal"><span class="muted small">На самом деле:</span> ' + esc(p.desc) + '</p>' : '') +
+        (checked ? feedbackHTML(p.fb, { pic: true }) + (p.desc ? '<p class="pr-reveal"><span class="muted small">Подпись из Википедии (для интереса — описывать можно по-своему):</span><br>' + esc(p.desc) + '</p>' : '') +
           '<div class="row-btns"><button type="button" class="btn" data-p="retry-pic">Описать заново</button><button type="button" class="btn primary" data-p="new-pic">Другая картинка</button></div>'
           : '<div class="row-btns"><button class="btn primary">' + I('check') + ' Проверить</button><button type="button" class="btn ghost small" data-p="copy-pic">' + I('note') + ' Скопировать запрос</button></div>' + (ready() ? '' : noAI)) +
       '</form>';
   }
+  function picSeenContext(p) {
+    return 'Задание: она описывала эту фотографию — фото приложено, посмотри на него внимательно. Подпись из Википедии для справки (она её не знает и не должна знать): «' + (p.desc || p.title) + '». ' +
+      'Проверяй прежде всего английский. По содержанию: если она что-то назвала не так, как на фото (перепутала предмет, цвет, количество), мягко поправь это в отдельном поле "content" (формат как у "notes": was — точная цитата из её текста). ' +
+      'Не считай ошибкой, что она чего-то не заметила или не знает, что это за место, и не заменяй её наблюдения своими. Если по фото понятно, что она имела в виду под непонятным словом, — подскажи в "help", как это сказать. ' +
+      'В "good" похвали за конкретные детали, которые она заметила. Добавь поле "more": 1-2 интересные детали с фото, которых нет в её описании, — по-английски, простыми словами её уровня.';
+  }
   function picContext(p) {
-    return 'Задание: описать картинку. Что на картинке по данным Википедии (описание может быть неполным — не считай ошибкой детали, которых в нём нет; оценивай в первую очередь язык): «' + (p.desc || p.title) + '».';
+    return 'Задание: она описывала фотографию так, как её видит. ТЫ ЭТУ ФОТОГРАФИЮ НЕ ВИДИШЬ. Для справки — подпись к фото из Википедии: «' + (p.desc || p.title) + '». ' +
+      'Подпись может описывать фото совсем по-другому, а ученица её не знает и не должна знать. НИКОГДА не подгоняй её описание под подпись: ' +
+      'не заменяй её слова словами из подписи, не считай ошибкой, что она увидела другое или не назвала место, не исправляй содержание. Проверяй только английский язык. ' +
+      'В "good" похвали за то, что она сама заметила и описала.';
   }
 
   // --- Дневник ---
@@ -427,7 +482,9 @@
       if (!text) { U.toast('Опиши хоть пару предложений'); return; }
       p.text = text;
       if (!ready()) { Store.save(); copyPrompt('Я учу английский (уровень ' + level() + '). Я описывала картинку: ' + (p.desc || p.title) + '\nПроверь моё описание: исправь ошибки, объясни их по-русски и подскажи полезные слова.\n\n' + text); return; }
-      const fb = await checkWriting(f.querySelector('button.primary'), picContext(p), text);
+      let img = null;
+      try { img = await imageData(p.src); } catch (err) { /* без картинки — проверим только язык */ }
+      const fb = await checkWriting(f.querySelector('button.primary'), img ? picSeenContext(p) : picContext(p), text, img ? { images: [img], fallback: picContext(p) } : null);
       if (!fb) return;
       p.fb = fb; w.picDraft = '';
       w.items.push({ id: U.uid(), kind: 'picture', title: 'Картинка: ' + (p.title || 'фото дня').slice(0, 60), ts: Date.now() });

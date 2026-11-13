@@ -164,11 +164,15 @@
       const kp = AI.keyProblem();
       if (kp) throw new Error(kp);
       const messages = Array.isArray(o.prompt) ? o.prompt : [{ role: 'user', text: o.prompt }];
+      // Картинки (o.images: [{ mime, data: base64 }]) прикладываются к последнему сообщению — всё в одном запросе
+      const imgs = Array.isArray(o.images) ? o.images.filter((x) => x && x.data) : [];
+      const lastUser = messages.length - 1;
       const system = (o.system || '') + (o.json ? '\nОтвечай ТОЛЬКО валидным JSON без пояснений и без ```.' : '');
       let text;
       if (c.provider === 'gemini') {
         const body = {
-          contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] })),
+          contents: messages.map((m, i) => ({ role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.text }].concat(i === lastUser ? imgs.map((x) => ({ inlineData: { mimeType: x.mime || 'image/jpeg', data: x.data } })) : []) })),
           generationConfig: Object.assign({ temperature: o.temperature == null ? 0.7 : o.temperature }, o.maxTokens ? { maxOutputTokens: o.maxTokens } : {}),
         };
         if (system.trim()) body.systemInstruction = { parts: [{ text: system }] };
@@ -213,7 +217,10 @@
         if (c.provider === 'openrouter') { headers['X-Title'] = 'Study Workspace'; }
         const msgs = [];
         if (system.trim()) msgs.push({ role: 'system', content: system });
-        messages.forEach((m) => msgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }));
+        messages.forEach((m, i) => msgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: i === lastUser && imgs.length
+            ? [{ type: 'text', text: m.text }].concat(imgs.map((x) => ({ type: 'image_url', image_url: { url: 'data:' + (x.mime || 'image/jpeg') + ';base64,' + x.data } })))
+            : m.text }));
         // Модели-кандидаты: выбранная вручную — или подобранные автоматически (до 3 попыток)
         const candidates = c.model || c.provider !== 'openrouter' ? [AI.model()] : await openRouterCandidates();
         let lastErr = null;
