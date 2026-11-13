@@ -4,6 +4,8 @@
 
 Первый путь — исходная папка с конспектами (только читается: нужна, чтобы ссылки [[...]] вели на настоящие имена файлов).
 Второй — куда писать новые заметки. Существующие файлы с теми же именами перезаписываются, другие не трогаются.
+Личные файлы из private/ по умолчанию НЕ выгружаются (хранилище Obsidian может синхронизироваться);
+добавь флаг --with-private, только если папка назначения точно не уходит в облако.
 """
 import importlib.util
 import json
@@ -19,8 +21,9 @@ const vm = require('vm'), fs = require('fs');
 const ctx = { window: {} }; vm.createContext(ctx);
 for (const f of ['ml-theory1.js', 'ml-theory2.js', 'ml-deep.js', 'ml-tasks.js', 'ml-libs.js'])
   vm.runInContext(fs.readFileSync('js/content/' + f, 'utf8'), ctx);
-// личный трек (папка private/, не публикуется) — если он есть на этом компьютере
-if (fs.existsSync('private/ml-track.js')) vm.runInContext(fs.readFileSync('private/ml-track.js', 'utf8'), ctx);
+// личные файлы (папка private/) — только если явно попросили: python3 tools/export-obsidian.py SRC DST --with-private
+if (process.env.WITH_PRIVATE === '1') for (const f of fs.readdirSync('private').filter((x) => x.endsWith('.js')))
+  vm.runInContext(fs.readFileSync('private/' + f, 'utf8'), ctx);
 const w = ctx.window;
 process.stdout.write(JSON.stringify({ topics: w.ML_TOPICS, modules: w.ML_MODULES, map: w.ML_NOTE_MAP, tasks: w.ML_TASKS, track: w.ML_TRACK || null }));
 """
@@ -102,7 +105,8 @@ def main(src, dst):
         for f in files:
             if f.endswith('.md'):
                 original[bn.clean_title(f[:-3])] = f[:-3]
-    data = json.loads(subprocess.run(['node', '-e', DUMP_JS], cwd=HERE, capture_output=True, text=True, check=True).stdout)
+    env = dict(os.environ, WITH_PRIVATE='1' if '--with-private' in sys.argv else '0')
+    data = json.loads(subprocess.run(['node', '-e', DUMP_JS], cwd=HERE, capture_output=True, text=True, check=True, env=env).stdout)
     topics, modules = data['topics'], data['modules']
     os.makedirs(dst, exist_ok=True)
     written = []
@@ -137,4 +141,4 @@ def main(src, dst):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2])  # флаг --with-private читается из sys.argv
