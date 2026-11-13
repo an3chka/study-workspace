@@ -33,7 +33,7 @@
   }
 
   function S() { return Store.state; }
-  function P() { const st = S(); st.ml = st.ml || {}; ['quiz', 'cards', 'code', 'solved', 'ans', 'checks', 'deep', 'noteQs', 'scratch', 'aiQuiz', 'runs', 'ansHist'].forEach((k) => { st.ml[k] = st.ml[k] || {}; }); st.ml.custom = st.ml.custom || []; return st.ml; }
+  function P() { const st = S(); st.ml = st.ml || {}; ['quiz', 'cards', 'code', 'solved', 'ans', 'checks', 'deep', 'noteQs', 'scratch', 'aiQuiz', 'runs', 'ansHist', 'hintLvl'].forEach((k) => { st.ml[k] = st.ml[k] || {}; }); st.ml.custom = st.ml.custom || []; return st.ml; }
   function topics() { return (window.ML_TOPICS || []).concat(P().custom); }
   function modules() { return (window.ML_MODULES || []).concat(P().custom.length ? [['mine', 'Мои темы', 'созданы по запросу или из конспектов']] : []); }
   function tasks() { return window.ML_TASKS || []; }
@@ -345,6 +345,44 @@ elif TEST_CODE:
     if ((App.privateFiles && App.privateFiles().length) || (App.privateLocal && App.privateLocal.length)) return '';
     return '<a class="card hw-banner private-hint" href="#/settings/private">' + I('lock') + '<div><b>Свои материалы</b>' +
       '<small>Задачи и темы, которых нет на сайте, лежат у тебя в папке private/. Подключи их здесь: Настройки → Личные материалы → «Подключить файлы». Они хранятся только в этом браузере.</small></div>' + I('chevron-right') + '</a>';
+  }
+
+  // ---------- Подсказки по ступенькам и сравнение с другим решением ----------
+  const HINT_LABELS = ['Идея', 'Чем воспользоваться', 'План по шагам'];
+  function hintList(t) { return (t.hints && t.hints.length ? t.hints : [t.hint]).filter(Boolean); }
+  function hintBtnHTML(t) {
+    const n = hintList(t).length, lvl = Math.min(P().hintLvl[t.id] || 0, n);
+    if (!n) return '';
+    const label = lvl === 0 ? 'Подсказка' : lvl < n ? 'Ещё подсказка (' + (lvl + 1) + '/' + n + ')' : 'Все подсказки открыты';
+    return '<button class="btn" data-ml="hint"' + (lvl >= n ? ' disabled' : '') + '>' + I('lightbulb') + ' ' + label + '</button>';
+  }
+  function hintsHTML(t) {
+    const list = hintList(t), lvl = Math.min(P().hintLvl[t.id] || 0, list.length);
+    if (!lvl) return '';
+    return '<div class="hint-steps">' + list.slice(0, lvl).map((h, i) => '<div class="ai-status ok">' + I('lightbulb') + '<span>' +
+      (list.length > 1 ? '<b>' + (HINT_LABELS[i] || 'Подсказка ' + (i + 1)) + '.</b> ' : '') + App.md(h) + '</span></div>').join('') + '</div>';
+  }
+  function nextHint(t) {
+    const pr = P(), n = hintList(t).length;
+    pr.hintLvl[t.id] = Math.min((pr.hintLvl[t.id] || 0) + 1, n); Store.saveSoon();
+    root.querySelector('#hint-box').innerHTML = hintsHTML(t);
+    const b = root.querySelector('[data-ml="hint"]'); if (b) b.outerHTML = hintBtnHTML(t);
+  }
+  // Для личных задач решение — только после своего: пройденные тесты или «Сделала». И оно не заменяет твой код, а показывается рядом.
+  function solutionBtnHTML(t) {
+    if (!t.private) return '<button class="btn ghost" data-ml="solution">Показать решение</button>';
+    if (!P().solved[t.id]) return '<button class="btn ghost locked" data-ml="solution-locked" title="Откроется после твоего решения">' + I('lock') + ' Решение — после твоего</button>';
+    return '<button class="btn ghost" data-ml="compare">' + I('code') + ' Сравнить с другим решением</button>';
+  }
+  function toggleCompare(t) {
+    const box = root.querySelector('#compare-box');
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    const mine = (root.querySelector('#code-editor') || {}).value || '';
+    box.innerHTML = '<div class="compare-grid"><div><b>Твоё решение</b><pre class="code-out">' + U.esc(mine) + '</pre></div>' +
+      '<div><b>Другой вариант</b><pre class="code-out">' + U.esc(t.solution) + '</pre></div></div>' +
+      (t.note ? '<div class="ai-status ok compare-note">' + I('book') + '<span>' + App.md(t.note) + '</span></div>' : '') +
+      '<p class="muted small">Сравни: что сделано иначе, что короче или понятнее, какие крайние случаи учтены. Твой код в редакторе не изменился.</p>';
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function hwTasks() { return tasks().filter((t) => t.module === 'track'); }
   function hwBanner() {
@@ -755,10 +793,9 @@ elif TEST_CODE:
               '<button class="btn" data-ml="copy-code">' + I('note') + ' Скопировать</button>' +
               '<button class="btn" data-ml="mark-done">' + I('check') + (pr.solved[t.id] ? ' Снять отметку' : ' Сделала') + '</button>'
             : '<button class="btn primary" data-ml="run">' + I('play') + ' Запустить тесты</button>') +
-          '<button class="btn" data-ml="hint">' + I('lightbulb') + ' Подсказка</button>' +
-          '<button class="btn ghost" data-ml="solution">Показать решение</button>' +
+          hintBtnHTML(t) + solutionBtnHTML(t) +
           '<button class="btn ghost" data-ml="reset">Сбросить</button></div>' +
-        '<div id="hint-box"></div>' +
+        '<div id="hint-box">' + hintsHTML(t) + '</div><div id="compare-box"></div>' +
         (t.local ? '' : '<pre id="code-out" class="code-out' + (codeOut ? (codeTb || /^✗/m.test(codeOut) ? ' bad' : ' ok') : ' empty') + '">' + U.esc(codeOut || 'Здесь появится результат тестов') + '</pre>' +
           '<div id="code-tb">' + tbHTML(codeTb) + '</div>' +
           '<details class="tests-box"><summary>Что проверяют тесты (' + nChecks(t) + ' ' + U.plural(nChecks(t), ['проверка', 'проверки', 'проверок']) + ')</summary><pre class="code-out">' + U.esc(t.tests) + '</pre>' +
@@ -798,7 +835,10 @@ elif TEST_CODE:
     if (res.ok) {
       codeOut = (res.out ? res.out + '\n' : '') + '🎉 Все тесты пройдены!';
       out.className = 'code-out ok';
-      if (!P().solved[t.id]) { P().solved[t.id] = Date.now(); Store.save(); U.toast('Задача решена! +30 XP'); if (window.Sound) Sound.notify(); }
+      if (!P().solved[t.id]) {
+        P().solved[t.id] = Date.now(); Store.save(); U.toast(t.private ? 'Задача решена! +30 XP. Теперь можно сравнить с другим решением' : 'Задача решена! +30 XP'); if (window.Sound) Sound.notify();
+        const sb = root.querySelector('[data-ml="solution-locked"]'); if (sb) sb.outerHTML = solutionBtnHTML(t);
+      }
     } else {
       const fe = formatPyError(res, code, t.tests, 'tests');
       codeOut = (res.out ? res.out + '\n' : '') + '✗ ' + fe.short;
@@ -909,7 +949,9 @@ elif TEST_CODE:
         box.scrollIntoView({ behavior: 'smooth', block: 'start' });
         break;
       }
-      case 'hint': if (tk) root.querySelector('#hint-box').innerHTML = '<div class="ai-status ok">' + I('lightbulb') + '<span>' + App.md(tk.hint) + '</span></div>'; break;
+      case 'hint': if (tk) nextHint(tk); break;
+      case 'compare': if (tk) toggleCompare(tk); break;
+      case 'solution-locked': U.toast('Решение откроется, когда сама пройдёшь тесты' + (tk && tk.local ? ' или отметишь «Сделала»' : '') + ' — тогда сможешь сравнить'); break;
       case 'solution':
         if (tk && await App.confirm('Показать решение? Лучше сначала попробовать подсказку — так запомнится надёжнее.', 'Показать')) {
           root.querySelector('#code-editor').value = tk.solution; pr.code[tk.id] = tk.solution; Store.save();

@@ -1243,3 +1243,9 @@ details.callout > summary.callout-title { cursor: pointer; }
 .private-card { border: 1px dashed var(--accent); }
 .tpl-box textarea { margin: 6px 0; }
 .tpl-box .tpl-out { margin-top: 8px; max-height: 360px; overflow: auto; white-space: pre-wrap; }
+.hint-steps { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.btn.locked { opacity: .7; }
+.compare-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
+@media (min-width: 900px) { .compare-grid { grid-template-columns: 1fr 1fr; } }
+.compare-grid pre { max-height: 420px; overflow: auto; white-space: pre; margin-top: 4px; }
+.compare-note { margin-top: 8px; }
