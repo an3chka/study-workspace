@@ -39,8 +39,20 @@
       read: st.texts.filter((t) => t.readAt && U.dayKey(t.readAt) === key).length,
       hobby: st.hobbies.reduce((n, h) => n + h.log.filter((l) => U.dayKey(l.ts) === key).length + (h.steps || []).filter((s) => s.doneAt && U.dayKey(s.doneAt) === key).length, 0),
       reflection: (st.reflections || []).filter((r) => r.day === key).length,
+      // каждый день: разминка/прогулка (отмечает сама) и ML (задачка решена или 20 минут занятий)
+      move: !!((g().daily || {})[key] || {}).move,
+      mlSolved: Object.values((st.ml && st.ml.solved) || {}).filter((ts) => typeof ts === 'number' && U.dayKey(ts) === key).length,
+      mlMinutes: Stats.sum(Stats.inRange(from, U.addDays(from, 1)).filter((x) => { const t = Store.task(x.taskId); return t && ML_RE.test(t.name); })) / 60,
     };
   }
+  const ML_RE = /(^|[^а-яa-z])(мл|ml)([^а-яa-z]|$)|машинн|machine|нейросет/i;
+
+  // Пункты «Каждый день» — показываются всегда, не по очереди
+  const DAILY = [
+    { id: 'move', icon: 'activity', text: 'Разминка или прогулка', manual: true, done: (f) => f.move },
+    { id: 'ml', icon: 'code', text: 'ML: реши задачку или позанимайся 20 минут', done: (f) => f.mlSolved >= 1 || f.mlMinutes >= 20,
+      prog: (f) => f.mlSolved ? 'задачка решена' : Math.min(20, Math.floor(f.mlMinutes)) + '/20 мин', href: '#/ml' },
+  ];
 
   const QUESTS = [
     { id: 'focus25', text: 'Позанимайся с таймером 25 минут', done: (f) => f.minutes >= 25, prog: (f) => Math.min(25, Math.floor(f.minutes)) + '/25 мин' },
@@ -116,7 +128,7 @@
     { id: 'plan100', icon: 'check-circle', name: 'Всё по плану', desc: 'Выполнить весь план дня (от 3 блоков)', ok: () => { const by = {}; S().plan.forEach((b) => { const d = by[b.day] || (by[b.day] = [0, 0]); d[1]++; if (b.done) d[0]++; }); return Object.values(by).some(([a, b]) => b >= 3 && a === b); } },
     { id: 'mood14', icon: 'heart', name: 'Слышу себя', desc: '14 отметок самочувствия', ok: () => S().mood.length >= 14 },
     { id: 'calm', icon: 'wind', name: 'Спокойствие', desc: '10 упражнений для себя', ok: () => S().practice.filter((p) => p.type !== 'lesson').length >= 10 },
-    { id: 'quests', icon: 'target', name: 'Охотница за заданиями', desc: 'Выполнить все 3 задания дня', ok: () => Object.values(g().quests).some((q) => q && q.done && q.done.length >= 3) },
+    { id: 'quests', icon: 'target', name: 'Охотница за заданиями', desc: 'Выполнить все 3 задания дня', ok: () => Object.values(g().quests).some((q) => q && q.done && q.done.filter((id) => !q.ids || q.ids.includes(id)).length >= 3) },
     { id: 'why', icon: 'heart', name: 'Знаю зачем', desc: 'Записать своё «зачем»', ok: () => (S().why || []).length >= 1 },
   ];
   App.achievements = function () {
@@ -134,6 +146,11 @@
     let changed = false;
     quests.forEach((q) => {
       if (q.done(facts) && !rec.done.includes(q.id)) { rec.done.push(q.id); changed = true; U.toast('Задание дня выполнено: «' + q.text + '» +20 XP'); }
+    });
+    DAILY.forEach((q) => {
+      const ok = q.done(facts);
+      if (ok && !rec.done.includes(q.id)) { rec.done.push(q.id); changed = true; if (!q.manual) U.toast('Сделано: «' + q.text + '» +20 XP'); }
+      if (!ok && q.manual && rec.done.includes(q.id)) { rec.done = rec.done.filter((x) => x !== q.id); changed = true; } // сняла галочку
     });
     ACH.forEach((a) => {
       if (!g().achievements[a.id]) {
@@ -153,7 +170,7 @@
   App.gameCardHTML = function () {
     const { facts, quests, rec } = App.checkGame();
     const L = App.playerLevel();
-    const doneCount = rec.done.length;
+    const doneCount = rec.done.filter((id) => quests.some((q) => q.id === id)).length;
     return '<section class="card game-card-home">' +
       '<div class="gh-top"><div class="lp-level"><span>' + L.lvl + '</span><small>уровень</small></div>' +
       '<div class="lp-xp"><div class="lp-xp-row"><b>' + U.esc(L.title) + '</b><span class="muted small">' + L.cur + ' / ' + L.need + ' XP</span></div>' +
@@ -166,8 +183,31 @@
         const text = q.id === 'goal' ? 'Набери ' + Math.round(Stats.goalSec() / 60) + ' мин с таймером (дневная цель)' : q.text;
         return '<a class="quest' + (ok ? ' ok' : '') + '"' + (q.href && !ok ? ' href="' + q.href + '"' : '') + '><span class="q-check">' + (ok ? I('check') : '') + '</span>' +
           '<span class="q-text">' + U.esc(text) + '</span>' + (q.prog && !ok ? '<span class="muted small">' + q.prog(facts) + '</span>' : '') + '</a>';
+      }).join('') +
+      '<div class="q-head q-daily"><b>Каждый день</b><span class="muted small">+20 XP за каждое</span></div>' +
+      DAILY.map((q) => {
+        const ok = rec.done.includes(q.id);
+        const inner = '<span class="q-check">' + (ok ? I('check') : '') + '</span><span class="q-text">' + I(q.icon) + ' ' + U.esc(q.text) + '</span>' +
+          (q.manual ? '<span class="muted small">' + (ok ? 'сделано' : 'отметь сама') + '</span>' : q.prog && !ok ? '<span class="muted small">' + q.prog(facts) + '</span>' : '');
+        return q.manual
+          ? '<button type="button" class="quest' + (ok ? ' ok' : '') + '" data-daily="' + q.id + '" aria-pressed="' + ok + '">' + inner + '</button>'
+          : '<a class="quest' + (ok ? ' ok' : '') + '"' + (q.href && !ok ? ' href="' + q.href + '"' : '') + '>' + inner + '</a>';
       }).join('') + '</div></section>';
   };
+
+  // Галочка «Разминка или прогулка» — ставит и снимает сама
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-daily]');
+    if (!b) return;
+    const key = U.dayKey(Date.now());
+    const d = g().daily = g().daily || {};
+    const day = d[key] = d[key] || {};
+    day[b.dataset.daily] = !day[b.dataset.daily];
+    if (day[b.dataset.daily]) U.toast('Отмечено: разминка или прогулка +20 XP');
+    Object.keys(d).sort().slice(0, -60).forEach((k) => delete d[k]); // храним последние 60 дней
+    Store.save();
+    App.render();
+  });
 
   // Блок достижений для статистики
   App.achievementsHTML = function () {

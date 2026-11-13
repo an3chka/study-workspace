@@ -1387,3 +1387,8 @@ textarea { resize: vertical; }
 .wr-help { margin: 8px 0; }
 .wr-help ul { padding-left: 18px; margin: 4px 0 0; }
 .wr-help li { margin: 4px 0; }
+button.quest { width: 100%; font: inherit; font-size: .93rem; text-align: left; cursor: pointer; }
+button.quest:hover { border-color: var(--accent); }
+.q-daily { margin-top: 10px; }
+.quest .q-text { flex: 1; }
+.quest .q-text .ic { width: 15px; height: 15px; vertical-align: -2px; color: var(--accent); }
