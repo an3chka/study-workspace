@@ -1245,7 +1245,8 @@ details.callout > summary.callout-title { cursor: pointer; }
 .tpl-box .tpl-out { margin-top: 8px; max-height: 360px; overflow: auto; white-space: pre-wrap; }
 .hint-steps { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .btn.locked { opacity: .7; }
-.compare-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
-@media (min-width: 900px) { .compare-grid { grid-template-columns: 1fr 1fr; } }
-.compare-grid pre { max-height: 420px; overflow: auto; white-space: pre; margin-top: 4px; }
+.compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; min-width: 0; }
+.compare-grid > div { min-width: 0; }
+.compare-grid pre { max-height: 420px; overflow: auto; white-space: pre; margin-top: 4px; max-width: 100%; }
+.code-card { min-width: 0; overflow: hidden; }
 .compare-note { margin-top: 8px; }
