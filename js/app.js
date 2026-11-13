@@ -36,7 +36,7 @@
   // Сам подставляет задачу по разделу (Языки → задача по языку, Хобби → хобби…)
 
   const topbar = document.getElementById('topbar');
-  const ROUTE_CAT = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', hobby: 'hobby' };
+  const ROUTE_CAT = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', hobby: 'hobby', ml: 'ml' };
   let topPick = null; // выбранная вручную задача (до смены раздела)
 
   function suggestedTask() {
@@ -47,7 +47,7 @@
     st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId]) last[x.taskId] = x.start; });
     const byRecent = (a, b) => (last[b.id] || b.createdAt || 0) - (last[a.id] || a.createdAt || 0);
     const cat = ROUTE_CAT[routeName()];
-    const inCat = cat ? tasks.filter((t) => t.categoryId === cat).sort(byRecent) : [];
+    const inCat = cat === 'ml' ? tasks.filter(isMlTask).sort(byRecent) : cat ? tasks.filter((t) => t.categoryId === cat).sort(byRecent) : [];
     if (inCat[0]) return inCat[0];
     const lastTask = st.settings.lastTask && tasks.find((t) => t.id === st.settings.lastTask);
     return lastTask || tasks.sort(byRecent)[0];
@@ -102,18 +102,34 @@
 
   // ---------- Автоучёт времени по присутствию на странице ----------
   // Пока ты в учебном разделе, вкладка открыта и ты что-то делаешь —
-  // время само пишется в подходящую задачу. Без действий 2 минуты — пауза.
+  // время само пишется в подходящую задачу. Без действий 1 минуту — пауза,
+  // и время после последнего действия не засчитывается. При смене раздела запись закрывается сразу.
 
-  const AUTO_ROUTES = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang' };
-  const IDLE_MS = 2 * 60 * 1000;
+  const AUTO_ROUTES = { cards: 'lang', read: 'lang', lessons: 'lang', theory: 'lang', ml: 'ml' };
+  function isMlTask(t) { return /(^|[^а-яa-z])(мл|ml)([^а-яa-z]|$)|машинн|machine|нейросет/i.test(t.name) || !!(App.mlTaskRe && App.mlTaskRe.test(t.name)); }
+  const IDLE_MS = 60 * 1000;
   let lastInput = Date.now();
-  ['mousemove', 'keydown', 'scroll', 'touchstart', 'click'].forEach((ev) =>
-    window.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true }));
+  let resumedAt = Date.now();     // когда снова начала что-то делать после паузы
+  let lastTickAt = Date.now();    // до какого момента время уже учтено
+  ['mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'input'].forEach((ev) =>
+    window.addEventListener(ev, () => {
+      const now = Date.now();
+      if (now - lastInput > IDLE_MS) { resumedAt = now; if (!Timer.active) setTimeout(renderTopbarAutoState, 0); }
+      lastInput = now;
+    }, { passive: true, capture: true }));
 
   function autoTaskFor(route) {
-    const cat = AUTO_ROUTES[route];
+    let cat = AUTO_ROUTES[route];
+    if (route === 'lessons' && App.gameDomain && App.gameDomain() === 'ml') cat = 'ml';
     if (!cat) return null;
     const st = Store.state;
+    if (cat === 'ml') {
+      const ml = st.tasks.filter((t) => !t.archived && isMlTask(t));
+      if (ml.length) return ml.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      const t = { id: U.uid(), name: 'МЛ', categoryId: 'study', createdAt: Date.now(), goalMin: 0 };
+      st.tasks.push(t);
+      return t;
+    }
     const last = {};
     st.sessions.forEach((x) => { if (!last[x.taskId] || x.start > last[x.taskId]) last[x.taskId] = x.start; });
     const list = st.tasks.filter((t) => !t.archived && t.categoryId === cat).sort((a, b) => (last[b.id] || 0) - (last[a.id] || 0));
@@ -135,22 +151,36 @@
     return { name, sec: todaySec, paused };
   }
 
-  // Раз в 15 секунд продлеваем «авто-запись» (или начинаем новую)
-  function autoTick() {
+  // Раз в 15 секунд (и сразу при смене раздела или уходе со вкладки) продлеваем «авто-запись» или начинаем новую.
+  // route — раздел, за который считаем время (при переходе — тот, откуда ушли).
+  function autoTick(route, leaving) {
     const st = Store.state;
-    const route = routeName();
-    const active = st.settings.autoTrack !== false && !Timer.active && AUTO_ROUTES[route] && !document.hidden && Date.now() - lastInput <= IDLE_MS;
+    route = route || routeName();
     const now = Date.now();
+    const idle = now - lastInput > IDLE_MS;
+    const active = st.settings.autoTrack !== false && !Timer.active && AUTO_ROUTES[route] && (leaving || !document.hidden) && !idle;
     let s = st.autoSessId && st.sessions.find((x) => x.id === st.autoSessId);
-    if (!active) return;
+    const from = Math.max(lastTickAt, resumedAt, now - 20000);
+    lastTickAt = now;
+    if (!active) {
+      // пауза по бездействию: время после последнего действия не считаем
+      if (idle && s && s.end > lastInput) {
+        s.end = Math.max(s.start, lastInput);
+        s.sec = Math.round((s.end - s.start) / 1000);
+        if (s.sec < 5) { st.sessions = st.sessions.filter((x) => x !== s); st.autoSessId = null; }
+        Store.saveSoon();
+      }
+      return;
+    }
     const task = autoTaskFor(route);
     if (!task) return;
-    // продолжаем ту же запись, если перерыв был меньше минуты и задача та же
-    if (s && s.taskId === task.id && now - s.end < 60000 && U.dayKey(s.start) === U.dayKey(now)) {
+    // продолжаем ту же запись только без разрыва (после паузы или скрытой вкладки — новая запись, чтобы не засчитать перерыв)
+    if (s && s.taskId === task.id && from - s.end <= 2000 && U.dayKey(s.start) === U.dayKey(now)) {
       s.end = now;
       s.sec = Math.round((s.end - s.start) / 1000);
     } else {
-      s = { id: U.uid(), taskId: task.id, start: now - 15000, end: now, sec: 15, kind: 'auto' };
+      s = { id: U.uid(), taskId: task.id, start: from, end: now, sec: Math.round((now - from) / 1000), kind: 'auto' };
+      if (s.sec < 1) return;
       st.sessions.push(s);
       st.autoSessId = s.id;
     }
@@ -158,6 +188,17 @@
     const el = document.getElementById('tb-auto');
     if (el) el.textContent = U.human(Stats.sum(Stats.inRange(U.startOfDay(now), now + 1).filter((x) => x.kind === 'auto' && x.taskId === task.id)));
   }
+  // Переход в другой раздел: досчитать время прошлого раздела ровно до этого момента
+  let autoRoute = routeName();
+  window.addEventListener('hashchange', () => {
+    const next = routeName();
+    if (next !== autoRoute) { autoTick(autoRoute, true); autoRoute = next; }
+  });
+  // Вкладка скрыта — досчитать до этого момента; снова видна — считать с этого момента
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) autoTick(autoRoute, true);
+    else { resumedAt = Date.now(); lastInput = Date.now(); }
+  }, true);
   setInterval(() => { autoTick(); if (!Timer.active) renderTopbarAutoState(); }, 15000);
   document.addEventListener('visibilitychange', () => { if (!Timer.active) renderTopbar(); });
 

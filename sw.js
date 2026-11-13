@@ -1,11 +1,11 @@
 // Service worker: сохраняет файлы приложения, чтобы оно открывалось без интернета.
 // При изменении файлов увеличь номер версии — тогда браузер скачает свежие.
-const CACHE = 'kabinet-v36';
+const CACHE = 'kabinet-v45';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/icons.js', 'js/utils.js', 'js/store.js', 'js/ai.js', 'js/audio.js', 'js/timer.js', 'js/charts.js', 'js/stats-data.js', 'js/insights.js', 'js/game.js',
-  'js/views/home.js', 'js/views/plan.js', 'js/views/calendar.js', 'js/views/stats.js', 'js/views/cards.js', 'js/views/read.js', 'js/views/lessons.js', 'js/views/theory.js', 'js/content/grammar.js', 'js/content/grammar2.js', 'js/content/grammar3.js', 'js/content/grammar4.js', 'js/content/placement.js', 'js/content/library.js', 'js/content/library-quiz.js', 'js/content/library2.js', 'js/content/library3.js', 'js/content/vocab.js',
-  'js/views/hobby.js', 'js/views/mind.js', 'js/views/settings.js', 'js/app.js',
+  'js/views/home.js', 'js/views/plan.js', 'js/views/calendar.js', 'js/views/stats.js', 'js/views/cards.js', 'js/views/read.js', 'js/views/lessons.js', 'js/views/ml-notes.js', 'js/views/ml.js', 'data/notes.json', 'js/content/ml-theory1.js', 'js/content/ml-theory2.js', 'js/content/ml-deep.js', 'js/content/ml-tasks.js', 'js/content/ml-libs.js', 'js/content/ml-tests-extra.js', 'js/views/theory.js', 'js/content/grammar.js', 'js/content/grammar2.js', 'js/content/grammar3.js', 'js/content/grammar4.js', 'js/content/placement.js', 'js/content/library.js', 'js/content/library-quiz.js', 'js/content/library2.js', 'js/content/library3.js', 'js/content/vocab.js',
+  'js/views/hobby.js', 'js/views/mind.js', 'js/views/settings.js', 'js/app.js', 'js/private-loader.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

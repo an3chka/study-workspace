@@ -86,6 +86,7 @@
       'Самочувствие': st.mood.length * 3 + st.practice.filter((p) => p.type !== 'lesson').length * 5 + st.journal.length * 5 + (st.reflections || []).length * 5,
       'Хобби': st.hobbies.reduce((n, h) => n + h.log.length * 5 + (h.steps || []).filter((s) => s.done).length * 5, 0),
       'Чтение': st.texts.filter((t) => t.read).length * 15,
+      'ML': st.ml ? Object.keys(st.ml.solved || {}).length * 30 + Object.values(st.ml.quiz || {}).filter((v) => v >= 50).length * 15 + Object.values(st.ml.cards || {}).filter((v) => v === 'known').length * 3 : 0,
       'Задания дня': questsDone * 20,
     };
     return { parts, total: Object.values(parts).reduce((a, b) => a + b, 0) };

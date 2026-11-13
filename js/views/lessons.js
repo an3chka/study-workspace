@@ -155,7 +155,8 @@
   }
 
   function openGame() {
-    autoTimerStart();
+    if (game.domain !== 'ml') autoTimerStart(); // для тестов по ML время считает автоучёт раздела ML
+
     if (location.hash.startsWith('#/lessons')) App.render(); else location.hash = '#/lessons';
     window.scrollTo(0, 0);
   }
@@ -178,7 +179,8 @@
   App.startQuiz = function (title, questions, onDone, backHref) {
     const lesson = sanitize({ title, intro: '', exercises: questions });
     if (!lesson.exercises.length) { U.toast('Вопросы получились неполными'); return; }
-    game = { kind: 'quiz', lesson, i: 0, hearts: Infinity, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), onDone, backHref: backHref || '#/read' };
+    game = { kind: 'quiz', lesson, i: 0, hearts: Infinity, xp: 0, combo: 0, right: 0, answered: null, mistakes: [], started: Date.now(), onDone, backHref: backHref || '#/read',
+      domain: String(backHref || '').startsWith('#/ml') ? 'ml' : 'lang' };
     openGame();
   };
 
@@ -230,7 +232,6 @@
   }
 
   function finish() {
-    autoTimerStop();
     const prof = P();
     const total = game.lesson.exercises.length;
     const done = Math.min(total, game.i);
@@ -266,6 +267,8 @@
     }
     S().practice.push({ id: U.uid(), ts: Date.now(), type: 'lesson', sec: Math.round((Date.now() - game.started) / 1000) });
     Store.save();
+    // таймер останавливаем в самом конце: его остановка перерисовывает экран, а урок к этому моменту уже посчитан
+    autoTimerStop();
     if (window.Sound) Sound.notify();
   }
 
@@ -435,11 +438,12 @@
     const a = game.answered;
     let body = '';
     if (e.type === 'choice') {
-      body = '<p class="ex-kind">Выбери правильный вариант</p><p class="ex-q">' + fmtGap(e.question) + '</p><div class="choices">' +
+      const ml = game.domain === 'ml';
+      body = '<p class="ex-kind">Выбери правильный вариант</p><p class="ex-q">' + (ml ? App.md(e.question) : fmtGap(e.question)) + '</p><div class="choices">' +
         e.options.map((opt, k) => {
           let cls = '';
           if (a) cls = k === e.answer ? ' right' : (String(k) === String(a.mine) ? ' wrong' : ' dim');
-          return '<button class="choice' + cls + '" data-l="choose" data-k="' + k + '"' + (a ? ' disabled' : '') + '><span class="ck">' + (k + 1) + '</span>' + U.esc(opt) + '</button>';
+          return '<button class="choice' + cls + '" data-l="choose" data-k="' + k + '"' + (a ? ' disabled' : '') + '><span class="ck">' + (k + 1) + '</span>' + (ml ? App.md(opt) : U.esc(opt)) + '</button>';
         }).join('') + '</div>';
     } else if (e.type === 'gap') {
       body = '<p class="ex-kind">Вставь пропущенное слово</p><p class="ex-q">' + fmtGap(e.sentence) + '</p>' +
@@ -477,10 +481,10 @@
     if (a) {
       const right = rightText(e);
       fb = '<div class="feedback ' + (a.correct ? 'ok' : a.unknown ? 'skip' : 'bad') + '"><div class="fb-head">' + (a.correct ? I('check-circle') + ' Верно!' + (a.gain ? ' <span class="xp-pill">+' + a.gain + ' XP</span>' : '') + (game.combo >= 3 ? ' <span class="tag new">серия ' + game.combo + '</span>' : '') : a.unknown ? I('book') + ' Ничего страшного — разберём' : I('alert') + ' Не совсем') + '</div>' +
-        (e.type === 'open' ? (right ? '<p>Пример ответа: <i>' + U.esc(right) + '</i></p>' : '') : !a.correct || e.type !== 'choice' ? '<p>Правильно: <b>' + U.esc(right) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
+        (e.type === 'open' ? (right ? '<p>Пример ответа: <i>' + U.esc(right) + '</i></p>' : '') : !a.correct || e.type !== 'choice' ? '<p>Правильно: <b>' + (game.domain === 'ml' ? App.md(right) : U.esc(right)) + '</b> <button class="icon-btn small" data-l="speak" data-t="' + U.esc(right) + '" aria-label="Произнести">' + I('volume') + '</button></p>' : '') +
         (a.better && !a.correct ? '<p>Твой вариант, исправленный: <i>' + U.esc(a.better) + '</i></p>' : '') +
         (a.feedback ? '<p>' + U.esc(a.feedback) + '</p>' : '') +
-        (e.explain ? '<p class="muted">' + U.esc(e.explain) + '</p>' : '') +
+        (e.explain ? '<p class="muted">' + (game.domain === 'ml' ? App.md(e.explain) : U.esc(e.explain)) + '</p>' : '') +
         '<div class="fb-actions"><button class="btn primary" data-l="next" id="next-btn">' + (game.hearts <= 0 ? 'Завершить' : 'Дальше') + ' ' + I('chevron-right') + '</button>' +
         (e.topic && App.grammarTopic(e.topic) ? '<a class="btn ghost small" href="#/theory/' + e.topic + '" target="_self">' + I('book') + ' Теория: ' + U.esc(App.grammarTopic(e.topic).title) + '</a>' : '') +
         '<button class="btn ghost small" data-l="ask-open">' + I('sparkles') + ' Спросить про это задание</button></div>' +
@@ -537,14 +541,35 @@
 
   // ---------- Вопрос нейросети («Спросить») ----------
 
-  const askHistory = {};
+  // История переписки сохраняется (Store.state.askLog): после перезагрузки ответы на месте,
+  // а тот же вопрос второй раз не тратит запрос — ответ берётся из истории.
+  function AH() { const st = Store.state; st.askLog = st.askLog || {}; return st.askLog; }
+  const normQ = (q) => String(q).toLowerCase().replace(/[«»"'`.,!?;:()\s]+/g, ' ').trim();
+  const fmtTs = (ts) => ts ? new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  function msgHTML(m) {
+    return '<div class="ask-msg ' + m.role + (m.cached ? ' cached' : '') + '">' + (m.role === 'user' ? U.esc(m.text) : App.md(m.text)) +
+      (m.ts && m.role === 'user' ? '<span class="ask-ts">' + fmtTs(m.ts) + '</span>' : '') +
+      (m.cached ? '<span class="ask-ts">' + I('check') + ' ответ из истории — без запроса к нейросети · <button type="button" class="link-btn" data-ask-fresh>спросить заново</button></span>' : '') + '</div>';
+  }
+  // Не даём истории разрастись: максимум 40 сообщений в окне и ~1.5 МБ всего (старые окна удаляются первыми)
+  function trimAskLog() {
+    const log = AH();
+    Object.keys(log).forEach((k) => { if (log[k].length > 40) log[k].splice(0, log[k].length - 40); });
+    let size = JSON.stringify(log).length;
+    if (size < 1500000) return;
+    const order = Object.keys(log).sort((a, b) => ((log[a].slice(-1)[0] || {}).ts || 0) - ((log[b].slice(-1)[0] || {}).ts || 0));
+    for (const k of order) { if (size < 1200000) break; size -= JSON.stringify(log[k]).length; delete log[k]; }
+  }
   App.askBoxHTML = function (id, title, placeholder) {
-    const h = askHistory[id] || [];
-    return '<section class="card ask-box" data-ask="' + id + '"><h2 class="h-ic">' + I('sparkles') + ' ' + U.esc(title) + '</h2>' +
-      '<div class="ask-log">' + h.filter((m, i) => !(i === 0 && m.role === 'user' && m.text.startsWith('[начало]'))).map((m) => '<div class="ask-msg ' + m.role + '">' + (m.role === 'user' ? U.esc(m.text) : App.md(m.text)) + '</div>').join('') + '</div>' +
+    const h = AH()[id] || [];
+    const shown = h.filter((m, i) => !(i === 0 && m.role === 'user' && m.text.startsWith('[начало]')));
+    return '<section class="card ask-box" data-ask="' + id + '"><div class="card-head"><h2 class="h-ic">' + I('sparkles') + ' ' + U.esc(title) + '</h2>' +
+      '<button type="button" class="btn ghost small" data-ask-clear' + (h.length ? '' : ' hidden') + '>Очистить историю</button></div>' +
+      (shown.length > 8 ? '<details class="ask-older"><summary class="small">Раньше в этом окне: ' + (shown.length - 8) + ' ' + U.plural(shown.length - 8, ['сообщение', 'сообщения', 'сообщений']) + '</summary><div class="ask-log">' + shown.slice(0, -8).map(msgHTML).join('') + '</div></details>' : '') +
+      '<div class="ask-log">' + shown.slice(-8).map(msgHTML).join('') + '</div>' +
       '<form class="ask-form"><textarea name="q" rows="2" maxlength="600" placeholder="' + U.esc(placeholder || 'Задай вопрос') + '"></textarea>' +
       '<div class="ask-btns"><button class="btn primary">Спросить</button><button type="button" class="btn ghost small" data-ask-copy>' + I('note') + ' Скопировать запрос</button></div></form>' +
-      '<p class="muted small">1 вопрос = 1 запрос к нейросети. Закончился лимит? «Скопировать запрос» — и вставь в любую другую нейросеть.</p></section>';
+      '<p class="muted small">Переписка сохраняется. Повторный такой же вопрос покажет ответ из истории, без запроса к нейросети. Закончился лимит? «Скопировать запрос» — и вставь в любую другую нейросеть.</p></section>';
   };
   App.bindAskBox = function (el, id, contextFn, opts) {
     opts = opts || {};
@@ -552,24 +577,42 @@
     if (!box) return;
     const form = box.querySelector('form');
     const ta = form.querySelector('textarea');
+    const logEl = () => box.querySelectorAll('.ask-log')[box.querySelectorAll('.ask-log').length - 1];
+    let forceFresh = false;
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+    const recent = () => (AH()[id] || []).filter((m) => !m.cached).slice(-10).map((m) => ({ role: m.role, text: m.text }));
     // Полный текст запроса — чтобы вставить в любую другую нейросеть
     const fullPrompt = (q) => (opts.copyIntro || 'Я учу английский. Объясни, пожалуйста, по-русски и коротко, с 1–2 примерами.') + '\n\n' + contextFn() +
-      ((askHistory[id] || []).length ? '\n\nНаш разговор до этого:\n' + askHistory[id].map((m) => (m.role === 'user' ? 'Я: ' : 'Ответ: ') + m.text).join('\n') : '') +
+      (recent().length ? '\n\nНаш разговор до этого:\n' + recent().map((m) => (m.role === 'user' ? 'Я: ' : 'Ответ: ') + m.text).join('\n') : '') +
       '\n\nМой вопрос: ' + (q || '…');
     const copy = async (q) => {
       try { await navigator.clipboard.writeText(fullPrompt(q)); U.toast('Запрос скопирован — вставь его в любую нейросеть'); }
       catch (err) { window.prompt('Скопируй текст запроса:', fullPrompt(q)); }
     };
     box.querySelector('[data-ask-copy]').addEventListener('click', () => copy(ta.value.trim()));
+    box.querySelector('[data-ask-clear]').addEventListener('click', async () => {
+      if (!(await App.confirm('Удалить переписку в этом окне? Ответы нельзя будет посмотреть снова.', 'Удалить'))) return;
+      delete AH()[id]; Store.save();
+      box.querySelectorAll('.ask-log').forEach((l) => { l.innerHTML = ''; });
+      const older = box.querySelector('.ask-older'); if (older) older.remove();
+      box.querySelector('[data-ask-clear]').hidden = true;
+    });
+    box.addEventListener('click', (e) => {
+      if (!e.target.closest('[data-ask-fresh]')) return;
+      const msgs = AH()[id] || [];
+      const lastUser = msgs.filter((m) => m.role === 'user').slice(-1)[0];
+      if (!lastUser) return;
+      forceFresh = true; ta.value = lastUser.text; form.requestSubmit();
+    });
     // Нейросеть начинает разговор сама (например, задаёт первый вопрос по тексту)
-    if (opts.opener && !(askHistory[id] || []).length && (AI.ready() || AI._mock)) {
-      const log = box.querySelector('.ask-log');
+    if (opts.opener && !(AH()[id] || []).length && (AI.ready() || AI._mock)) {
+      const log = logEl();
       log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant typing">…</div>');
       AI.ask({ temperature: opts.temperature == null ? 0.6 : opts.temperature, system: opts.system + '\n\nКонтекст:\n' + contextFn(), prompt: opts.opener })
         .then((first) => {
           const tmp = log.querySelector('.typing'); if (tmp) tmp.remove();
-          askHistory[id] = [{ role: 'user', text: opts.opener }, { role: 'assistant', text: first }];
+          AH()[id] = [{ role: 'user', text: opts.opener, ts: Date.now() }, { role: 'assistant', text: first, ts: Date.now() }];
+          Store.saveSoon();
           log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">' + App.md(first) + '</div>');
         })
         .catch((e) => { const tmp = log.querySelector('.typing'); if (tmp) tmp.textContent = e.message; });
@@ -578,24 +621,39 @@
       e.preventDefault();
       const q = ta.value.trim();
       if (!q) return;
+      const h = AH()[id] = AH()[id] || [];
+      const log = logEl();
+      // Такой же вопрос уже задавали в этом окне — показываем сохранённый ответ
+      if (!forceFresh) {
+        const n = normQ(q);
+        for (let i = h.length - 2; i >= 0; i--) {
+          if (h[i].role === 'user' && normQ(h[i].text) === n && h[i + 1] && h[i + 1].role === 'assistant') {
+            const m = [{ role: 'user', text: q, ts: Date.now() }, { role: 'assistant', text: h[i + 1].text, ts: Date.now(), cached: true }];
+            h.push(...m); trimAskLog(); Store.saveSoon();
+            log.insertAdjacentHTML('beforeend', m.map(msgHTML).join(''));
+            ta.value = ''; box.querySelector('[data-ask-clear]').hidden = false;
+            return;
+          }
+        }
+      }
+      forceFresh = false;
       if (!AI.ready() && !AI._mock) { copy(q); return; }
-      const h = askHistory[id] = askHistory[id] || [];
-      const log = box.querySelector('.ask-log');
-      log.insertAdjacentHTML('beforeend', '<div class="ask-msg user">' + U.esc(q) + '</div>');
+      log.insertAdjacentHTML('beforeend', msgHTML({ role: 'user', text: q, ts: Date.now() }));
       ta.value = '';
       const answer = await AI.run(form.querySelector('button'), () => AI.ask({
         temperature: opts.temperature == null ? 0.4 : opts.temperature,
         system: (opts.system || ('Ты — добрая преподавательница английского для русскоязычной студентки. Отвечай по-русски, понятно и коротко (до 120 слов), ' +
           'приводи 1–2 примера на английском с переводом. Можно выделять важное **жирным**. Если вопрос не про язык, мягко верни к теме.')) + '\n\nКонтекст:\n' + contextFn(),
-        prompt: h.concat([{ role: 'user', text: q }]),
+        prompt: recent().concat([{ role: 'user', text: q }]),
       }));
       if (!answer) {
         log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">Не получилось получить ответ. Нажми «Скопировать запрос» и вставь его в другую нейросеть.</div>');
         ta.value = q;
         return;
       }
-      h.push({ role: 'user', text: q }, { role: 'assistant', text: answer });
-      if (h.length > 12) h.splice(0, h.length - 12);
+      h.push({ role: 'user', text: q, ts: Date.now() }, { role: 'assistant', text: answer, ts: Date.now() });
+      trimAskLog(); Store.saveSoon();
+      box.querySelector('[data-ask-clear]').hidden = false;
       log.insertAdjacentHTML('beforeend', '<div class="ask-msg assistant">' + App.md(answer) + '</div>');
     });
   };
@@ -714,6 +772,7 @@
   };
 
   App.levelOf = levelOf;
+  App.gameDomain = () => (game && !game.done && game.domain) || 'lang';
 
   // Самый естественный голос для языка (Google/Microsoft «Natural» звучат лучше системных)
   App.bestVoice = function (lang) {

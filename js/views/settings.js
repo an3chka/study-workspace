@@ -8,6 +8,20 @@
   let root = null;
   function S() { return Store.state; }
 
+  // Личные материалы: файлы, которых нет на опубликованном сайте (лежат у тебя в папке private/)
+  function privateSection() {
+    const files = App.privateFiles ? App.privateFiles() : [];
+    const local = App.privateLocal || [];
+    return '<section class="card"><h2 class="h-ic">' + I('lock') + ' Личные материалы</h2>' +
+      '<p>Файлы, которые не выложены на сайт (например, свои задания курса). Подключённый файл хранится <b>только в этом браузере</b>, никуда не отправляется и не попадает в экспорт.</p>' +
+      (files.length ? '<ul class="key-list">' + files.map((f) => '<li>' + I('check') + '<span>' + U.esc(f.name) + ' · ' + Math.round(f.size / 1024) + ' КБ · с ' + U.dateLabel(f.ts) + '</span></li>').join('') + '</ul>'
+        : local.length ? '<p class="muted small">Сайт открыт с этого компьютера — подхвачено из папки private/: ' + local.map(U.esc).join(', ') + '.</p>'
+          : '<p class="muted small">Сейчас ничего не подключено.</p>') +
+      '<div class="row-btns"><label class="btn">' + I('upload') + ' Подключить файлы<input type="file" accept=".js,text/javascript" id="private-file" multiple hidden></label>' +
+        (files.length ? '<button class="btn ghost" data-s="private-off">Отключить все</button>' : '') + '</div>' +
+      '<p class="muted small">Файлы лежат в папке проекта <code>private/</code> — выбери все сразу. Если они изменятся — подключи заново.</p></section>';
+  }
+
   function render(el) {
     root = el;
     const st = S().settings;
@@ -40,7 +54,7 @@
           '</select><button type="button" class="btn" data-s="test-notify">' + I('play') + ' Прослушать</button></span></label>' +
           '<p class="muted small">«Без звука» — уведомления только всплывают на экране. Фоновая музыка от этого не зависит.</p>' +
         '</fieldset>' +
-        '<label class="check"><input type="checkbox" name="autoTrack"' + (st.autoTrack !== false ? ' checked' : '') + '> Автоучёт: пока я в «Языках» и что-то делаю, время само идёт в задачу по английскому (пауза после 2 минут без действий)</label>' +
+        '<label class="check"><input type="checkbox" name="autoTrack"' + (st.autoTrack !== false ? ' checked' : '') + '> Автоучёт: пока я в «Языках» и что-то делаю, время само идёт в задачу по английскому (пауза после минуты без действий; при переходе в другой раздел время сразу идёт в его задачу)</label>' +
                 '<label class="check"><input type="checkbox" name="autoTimer"' + (st.autoTimer !== false ? ' checked' : '') + '> Автотаймер: время уроков, тестов и тренировок записывается само</label>' +
         '<label class="check"><input type="checkbox" name="autoTranslate"' + (st.autoTranslate ? ' checked' : '') + '> Автоперевод слов в «Чтении» (бесплатный сервис MyMemory, ему отправляется только слово)</label>' +
         '<label>Новых карточек в день (на колоду)<input type="number" name="newCardsPerDay" min="1" max="200" value="' + st.newCardsPerDay + '"></label>' +
@@ -75,6 +89,7 @@
         '</div>' +
         '<p class="muted small">' + (st.lastBackup ? 'Последний экспорт: ' + U.dateLabel(st.lastBackup) + ' ' + new Date(st.lastBackup).getFullYear() : 'Резервных копий ещё не было') + '. Импорт заменяет текущие данные содержимым файла.</p>' +
       '</section>' +
+      privateSection() +
 
       '<div class="grid-2">' +
       '<section class="card"><h2 class="h-ic">' + I('phone') + ' На телефон</h2>' +
@@ -205,6 +220,15 @@
       const c = S().categories.find((x) => x.id === t.dataset.catName);
       if (c && t.value.trim()) { c.name = t.value.trim(); Store.save(); } else if (c) t.value = c.name;
     }
+    if (t.id === 'private-file' && t.files.length) {
+      const files = Array.from(t.files);
+      Promise.all(files.map((f) => f.text().then((code) => [f.name, code]))).then((list) => {
+        const ok = list.filter(([name, code]) => App.addPrivateFile && App.addPrivateFile(name, code)).map(([name]) => name);
+        U.toast(ok.length ? 'Подключено: ' + ok.join(', ') + ' — материалы появились в своих разделах' : 'Не получилось подключить — это точно файлы из папки private?');
+        t.value = '';
+        App.render();
+      });
+    }
     if (t.id === 'import-file' && t.files[0]) {
       const file = t.files[0];
       App.confirm('Заменить текущие данные содержимым файла «' + file.name + '»? Сначала лучше сделать экспорт текущих.', 'Импортировать').then((ok) => {
@@ -228,6 +252,10 @@
     const b = e.target.closest('[data-s]');
     if (!b) return;
     const id = b.dataset.id;
+    if (b.dataset.s === 'private-off') {
+      App.confirm('Отключить личные материалы в этом браузере? Файлы на компьютере останутся, подключить можно снова.', 'Отключить').then((ok) => { if (ok) App.removePrivateFiles(); });
+      return;
+    }
     if (b.dataset.s === 'ai-show') {
       root.querySelectorAll('#ai-form textarea.secret').forEach((x) => x.classList.toggle('shown'));
     }

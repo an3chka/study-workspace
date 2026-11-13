@@ -15,8 +15,22 @@
   App.grammarTopic = topic;
 
   // Простая разметка: **жирный** и `код`
+  // Формулы LaTeX через KaTeX (если библиотека ещё не загрузилась — показываем исходник)
+  App.tex = function (src, display) {
+    if (window.katex) {
+      try { return katex.renderToString(src, { displayMode: !!display, throwOnError: false, strict: false }); } catch (e) { /* ниже — запасной вариант */ }
+    }
+    return '<code class="tex-raw">' + U.esc(src) + '</code>';
+  };
+  function mdText(s) {
+    return U.esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/~~(.+?)~~/g, '<s>$1</s>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+  }
+  // Markdown-лайт: **жирный**, `код`, $формула$ и $$формула$$
   App.md = function (text) {
-    return U.esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/~~(.+?)~~/g, '<s>$1</s>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+    return String(text == null ? '' : text).split(/(\$\$[^$]+\$\$|\$[^$\n]+\$)/g).map((p, i) => {
+      if (i % 2 === 0) return mdText(p);
+      return p.startsWith('$$') ? App.tex(p.slice(2, -2), true) : App.tex(p.slice(1, -1), false);
+    }).join('');
   };
 
   function done() { const p = S().lessons; p.theoryDone = p.theoryDone || {}; return p.theoryDone; }

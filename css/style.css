@@ -1085,3 +1085,158 @@ a.quest[href]:hover { border-color: var(--accent); }
 .tb-auto.paused { color: var(--muted); background: var(--surface-2); }
 @media (max-width: 760px) { .tb-auto { font-size: .72rem; padding: 3px 8px; } }
 @media (max-width: 760px) { .topbar { flex-wrap: wrap; } }
+
+/* ===== ML ===== */
+.ml-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.course-tag { background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); color: var(--accent); border-color: transparent; align-self: flex-start; }
+.formula.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; font-weight: 500; }
+.key-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.key-list li { display: flex; gap: 8px; align-items: flex-start; }
+.key-list .ic { color: var(--good); width: 18px; height: 18px; flex: none; margin-top: 2px; }
+.iv-q { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.iv-q:last-of-type { border-bottom: 0; }
+.iv-q summary { cursor: pointer; }
+.iv-q p { margin: 8px 0 0; color: var(--text); }
+.iv-list { display: flex; flex-direction: column; gap: 10px; }
+.iv-card { display: flex; flex-direction: column; gap: 8px; }
+.iv-card.known { opacity: .75; }
+.iv-card.again { border-color: var(--warn); }
+.iv-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.iv-question { font-size: 1.05rem; font-weight: 700; margin: 0; }
+.iv-answer { padding: 10px 12px; border-radius: 12px; background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); }
+.iv-answer p { margin: 4px 0 0; }
+.iv-check { display: flex; flex-direction: column; gap: 6px; }
+.iv-check .btn { align-self: flex-start; }
+.iv-result p { margin: 4px 0; display: flex; gap: 6px; align-items: flex-start; }
+.iv-result .ic { width: 16px; height: 16px; flex: none; margin-top: 3px; color: var(--accent); }
+.iv-card .row-btns { justify-content: flex-start; }
+.code-card { display: flex; flex-direction: column; gap: 10px; }
+.code-editor { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88rem; line-height: 1.5; min-height: 260px; tab-size: 4; white-space: pre; overflow: auto; background: var(--surface-2); }
+.code-btns { justify-content: flex-start !important; }
+.code-out { margin: 0; padding: 12px 14px; border-radius: 12px; background: #1b1830; color: #e9e6f5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; white-space: pre-wrap; min-height: 60px; }
+.code-out.empty { color: #8f88a8; }
+.code-out.ok { box-shadow: 0 0 0 2px var(--good) inset; }
+.code-out.bad { box-shadow: 0 0 0 2px var(--bad) inset; }
+@media (max-width: 760px) {
+  .nav { overflow-x: auto; justify-content: flex-start; }
+  .nav a { min-width: 52px; flex: 1 0 auto; }
+  .ml-kpis { grid-template-columns: 1fr; }
+}
+
+/* ---------- ML: трек задач, формулы, ответы на вопросы ---------- */
+.formula.tex { font-weight: 400; gap: 6px; overflow-x: auto; }
+.formula.tex .formula-row { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.formula.tex .katex-display { margin: 4px 0; }
+.katex { font-size: 1.08em; color: var(--text); }
+.tex-raw { white-space: pre-wrap; }
+.hw-banner { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; margin-bottom: 14px; border: 1px solid var(--accent-soft); background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft)); }
+.hw-banner > .ic { width: 28px; height: 28px; flex: none; color: var(--accent); }
+.hw-banner > div { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hw-banner small { color: var(--muted); }
+.hw-track .bar, .hw-banner .bar { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.hw-track .bar i, .hw-banner .bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--blue, var(--accent))); }
+.hw-tips { margin: 12px 0 4px; }
+.hw-tips summary { cursor: pointer; font-weight: 700; }
+.hw-stage { margin-top: 18px; }
+.hw-stage h3 { margin: 0 0 2px; font-size: 1.02rem; }
+.hw-stage > p { margin: 0 0 8px; }
+.hw-num { font-size: .75rem; font-weight: 800; color: var(--accent); }
+.hw-nav { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.hw-nav .btn { max-width: 100%; white-space: normal; text-align: left; }
+.check-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.check-list label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check-list input { margin-top: 4px; accent-color: var(--accent); width: 18px; height: 18px; flex: none; }
+.iv-input { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg, transparent); color: var(--text); }
+.iv-mine { padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--border); }
+.iv-mine p { margin: 4px 0 0; white-space: pre-wrap; }
+.iv-card .iv-question { font-size: 1rem; }
+.check-list li label { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 400; margin: 0; }
+.check-list li input[type="checkbox"] { width: 18px; min-width: 18px; height: 18px; padding: 0; margin: 3px 0 0; }
+
+/* ---------- ML: конспекты (Obsidian) ---------- */
+.notes-search input, .nt-input { width: 100%; box-sizing: border-box; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg, transparent); color: var(--text); }
+.nt-more { margin: 8px 0; }
+.nt-more summary { cursor: pointer; }
+.new-topic .row-btns { margin-top: 8px; }
+.notes-sub { font-size: .95rem; margin: 14px 0 6px; color: var(--muted); }
+.note-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.note-link { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); text-decoration: none; color: inherit; position: relative; }
+.note-link:hover { border-color: var(--accent); }
+.note-link b { font-weight: 700; font-size: .95rem; padding-right: 18px; }
+.note-link small { color: var(--muted); }
+.note-link.read { opacity: .7; }
+.note-link .topic-done { position: absolute; right: 8px; top: 8px; }
+.note-body { line-height: 1.6; overflow-wrap: anywhere; }
+.note-body .note-title { margin: 2px 0 12px; font-size: 1.5rem; }
+.note-body h1 { font-size: 1.35rem; margin: 22px 0 8px; }
+.note-body h2 { font-size: 1.18rem; margin: 20px 0 8px; }
+.note-body h3 { font-size: 1.05rem; margin: 16px 0 6px; }
+.note-body hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+.note-body pre { background: rgba(127, 127, 127, .1); padding: 10px 12px; border-radius: 10px; overflow-x: auto; font-size: .86rem; }
+.note-body code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+.note-body :not(pre) > code { background: rgba(127, 127, 127, .14); padding: 1px 5px; border-radius: 6px; }
+.note-body ul, .note-body ol { padding-left: 22px; }
+.note-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+.table-wrap { overflow-x: auto; margin: 10px 0; }
+.note-body table { border-collapse: collapse; font-size: .9rem; min-width: 60%; }
+.note-body th, .note-body td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+.note-body th { background: rgba(127, 127, 127, .08); }
+.wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed currentColor; }
+.wikilink.dead { color: var(--muted); }
+.callout { border-left: 4px solid var(--blue, var(--accent)); background: var(--blue-soft); border-radius: 10px; padding: 8px 14px; margin: 12px 0; }
+.callout > p:last-child { margin-bottom: 4px; }
+.callout-title { font-weight: 800; margin: 2px 0 4px; cursor: default; }
+details.callout > summary.callout-title { cursor: pointer; }
+.callout-abstract, .callout-summary, .callout-tldr, .callout-tip, .callout-hint, .callout-success, .callout-check { border-left-color: #4fb39a; background: rgba(79, 179, 154, .1); }
+.callout-danger, .callout-bug, .callout-failure, .callout-important { border-left-color: var(--accent); background: var(--accent-soft); }
+.callout-warning, .callout-caution, .callout-question, .callout-faq { border-left-color: #e0a54a; background: rgba(224, 165, 74, .12); }
+.callout-example, .callout-definition, .callout-quote { border-left-color: #9b7be0; background: rgba(155, 123, 224, .1); }
+.deep-body { margin-top: 6px; }
+.back-to { font-weight: 700; }
+
+/* ---------- ML: песочница рядом с редактором ---------- */
+.code-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+@media (min-width: 1180px) { .code-grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } .sandbox-card { position: sticky; top: 70px; } }
+.code-grid > .card { margin: 0; min-width: 0; }
+.sandbox-editor { min-height: 150px; }
+.sandbox-card .row-btns { justify-content: flex-start; margin: 8px 0; }
+.sandbox-card #sandbox-out { max-height: 320px; overflow: auto; }
+.play-banner > .ic { color: var(--blue, var(--accent)); }
+.tb-box, .tests-box { margin-top: 8px; }
+.tb-box summary, .tests-box summary { cursor: pointer; font-weight: 700; font-size: .9rem; }
+.tb-box pre, .tests-box pre { margin-top: 6px; max-height: 340px; overflow: auto; white-space: pre; }
+/* метка «решено/процент» — строкой внизу карточки, чтобы не наезжала на длинные названия */
+.topic-card .topic-done, .lib-item .topic-done { position: static; align-self: flex-start; order: 10; margin-top: 2px; }
+.topic-card .hw-num { order: -1; }
+
+/* ---------- ML: библиотеки ---------- */
+.lib-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.lib-card .tag { align-self: flex-start; }
+.lib-card .lib-progress { margin-top: auto; font-weight: 700; color: var(--accent); }
+.lib-body h2:first-child { margin-top: 4px; }
+.cheat-table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+.cheat-table td { border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+.cheat-table td:first-child { white-space: nowrap; }
+.cheat-table code { background: rgba(127, 127, 127, .14); padding: 1px 5px; border-radius: 6px; font-size: .86em; }
+@media (max-width: 640px) { .cheat-table td:first-child { white-space: normal; } }
+
+/* ---------- История: переписка, решения, мои ответы ---------- */
+.ask-ts { display: block; margin-top: 4px; font-size: .72rem; color: var(--muted); }
+.ask-msg.cached { border: 1px dashed var(--border); }
+.ask-older { margin-bottom: 8px; }
+.ask-older summary { cursor: pointer; color: var(--muted); }
+.ask-box .card-head { gap: 8px; }
+.runs-box { margin-top: 10px; }
+.runs-box > summary { cursor: pointer; font-weight: 700; font-size: .9rem; }
+.runs-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.run-item { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 6px 10px; }
+.run-item.ok { border-left-color: var(--good); }
+.run-item.bad { border-left-color: var(--accent); }
+.run-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.run-head .link-btn { margin-left: auto; }
+.run-item pre { max-height: 260px; overflow: auto; margin-top: 6px; }
+.iv-past { margin-top: 6px; }
+.iv-past > summary { cursor: pointer; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+.iv-past > summary .ic { width: 14px; height: 14px; }
+.iv-past-item { border-left: 2px solid var(--border); padding: 2px 0 2px 10px; margin: 8px 0; }
+.iv-past-item p { margin: 2px 0 0; white-space: pre-wrap; }

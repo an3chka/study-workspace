@@ -62,8 +62,12 @@
     const a = t.search(/[[{]/);
     const b = Math.max(t.lastIndexOf('}'), t.lastIndexOf(']'));
     if (a >= 0 && b > a) {
-      try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { /* ignore */ }
+      t = t.slice(a, b + 1);
+      try { return JSON.parse(t); } catch (e) { /* ignore */ }
     }
+    // LaTeX с одинарными слэшами (\hat, \underline) ломает JSON — удваиваем «неправильные» слэши
+    const fixed = t.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
+    try { return JSON.parse(fixed); } catch (e) { /* ignore */ }
     throw new Error('Нейросеть ответила не по формату. Попробуй ещё раз.');
   }
 
@@ -165,7 +169,7 @@
       if (c.provider === 'gemini') {
         const body = {
           contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.text }] })),
-          generationConfig: { temperature: o.temperature == null ? 0.7 : o.temperature },
+          generationConfig: Object.assign({ temperature: o.temperature == null ? 0.7 : o.temperature }, o.maxTokens ? { maxOutputTokens: o.maxTokens } : {}),
         };
         if (system.trim()) body.systemInstruction = { parts: [{ text: system }] };
         if (o.json) body.generationConfig.responseMimeType = 'application/json';
