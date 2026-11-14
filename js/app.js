@@ -425,7 +425,21 @@
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker не установлен', e));
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // Проверяем, не вышла ли новая версия, — при открытии и когда возвращаешься на вкладку
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+      }).catch((e) => console.warn('Service worker не установлен', e));
+    });
+    // Новая версия сайта установилась — перезагружаем страницу сами (если ты сейчас не пишешь текст)
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      const a = document.activeElement;
+      const typing = a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.value));
+      if (typing) { U.toast('Вышла новая версия кабинета — обнови страницу, когда допишешь'); return; }
+      reloaded = true;
+      location.reload();
     });
   }
 

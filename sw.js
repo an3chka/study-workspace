@@ -1,6 +1,6 @@
 // Service worker: сохраняет файлы приложения, чтобы оно открывалось без интернета.
 // При изменении файлов увеличь номер версии — тогда браузер скачает свежие.
-const CACHE = 'kabinet-v62';
+const CACHE = 'kabinet-v64';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/icons.js', 'js/utils.js', 'js/store.js', 'js/ai.js', 'js/audio.js', 'js/timer.js', 'js/charts.js', 'js/stats-data.js', 'js/insights.js', 'js/game.js',
@@ -19,10 +19,12 @@ self.addEventListener('activate', (e) => {
 });
 
 // Сначала пробуем сеть (чтобы видеть обновления), без сети — берём из кэша.
+// cache: 'no-cache' — браузер каждый раз спрашивает сервер, не изменился ли файл (иначе GitHub Pages
+// ещё ~10 минут после выкладки отдаёт старую версию из кэша браузера). Если не изменился — ответ крошечный.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then((res) => {
+    fetch(e.request, { cache: 'no-cache' }).catch(() => fetch(e.request)).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return res;
