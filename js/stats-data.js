@@ -2,6 +2,7 @@
 (function () {
   'use strict';
 
+  const App = window.App = window.App || {};
   const Stats = {};
 
   // Все записи + «живая» запись от запущенного таймера (чтобы прогресс рос на глазах).
@@ -21,6 +22,48 @@
   };
 
   Stats.sum = (list) => list.reduce((a, s) => a + s.sec, 0);
+
+  // Цель задачи: t.goalMin минут в день (goalPeriod: 'day') или в неделю ('week').
+  // Возвращает, сколько уже сделано в этот день/неделю и сколько осталось.
+  Stats.taskGoal = function (t) {
+    if (!t || !t.goalMin) return null;
+    const week = t.goalPeriod === 'week';
+    const from = week ? U.startOfWeek(Date.now()) : U.startOfDay(Date.now());
+    const done = Stats.sum(Stats.inRange(from, U.addDays(from, week ? 7 : 1)).filter((s) => s.taskId === t.id));
+    const goal = t.goalMin * 60;
+    return { week, goal, done, left: Math.max(0, goal - done), frac: Math.min(1, done / goal), per: week ? 'в неделю' : 'в день', when: week ? 'на этой неделе' : 'сегодня' };
+  };
+
+  // Карточка «Цели по времени»: задачи с целью, прогресс и кнопка таймера
+  App.goalRowsHTML = function (opts) {
+    opts = opts || {};
+    const st = Store.state;
+    const tasks = st.tasks.filter((t) => !t.archived && t.goalMin);
+    if (!tasks.length) return '';
+    const day = tasks.filter((t) => t.goalPeriod !== 'week'), week = tasks.filter((t) => t.goalPeriod === 'week');
+    const row = (t) => {
+      const g = Stats.taskGoal(t);
+      const c = Store.category(t.categoryId);
+      const running = st.active && st.active.taskId === t.id;
+      return '<li class="goal-row' + (g.left === 0 ? ' done' : '') + '" style="--c:' + c.color + '">' +
+        '<button class="play small-play" data-goal="' + (running ? 'stop' : 'start') + '" data-id="' + t.id + '" aria-label="' + (running ? 'Остановить' : 'Запустить таймер') + ' ' + U.esc(t.name) + '">' + I(running ? 'stop' : 'play') + '</button>' +
+        '<div class="goal-main"><div class="goal-top"><b>' + U.esc(t.name) + '</b><span class="muted small">' +
+          (g.left === 0 ? I('check') + ' цель выполнена' : 'осталось ' + U.human(g.left)) + '</span></div>' +
+          '<div class="mini-bar"><span style="width:' + Math.round(g.frac * 100) + '%;background:' + c.color + '"></span></div>' +
+          '<span class="muted small">' + U.human(g.done) + ' из ' + U.human(g.goal) + ' ' + g.when + '</span></div></li>';
+    };
+    return (day.length ? (opts.titles ? '<h3 class="goal-h">На день</h3>' : '') + '<ul class="goal-list">' + day.map(row).join('') + '</ul>' : '') +
+      (week.length ? '<h3 class="goal-h">На неделю</h3><ul class="goal-list">' + week.map(row).join('') + '</ul>' : '');
+  };
+
+  // Кнопка таймера у цели (на главной и в «Плане»)
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-goal]');
+    if (!b) return;
+    if (b.dataset.goal === 'stop') { Timer.stop(); return; }
+    Store.state.settings.lastTask = b.dataset.id;
+    Timer.start(b.dataset.id, Store.state.settings.lastMode || 'watch');
+  });
 
   Stats.byDay = function (list) {
     const m = {};

@@ -55,6 +55,7 @@
         (sum.total ? '<div class="plan-progress"><div class="progress"><span style="width:' + pct + '%"></span></div><span class="muted small">' + sum.done + ' из ' + sum.total + ' · ' + U.human(sum.plannedMin * 60) + ' запланировано</span></div>' : '') +
       '</div>' +
 
+      '<div class="plan-layout"><div class="plan-main">' +
       (isToday ? carryCard() : '') +
       '<section class="card">' +
         (list.length ? '<ol class="timeline">' + list.map((b) => {
@@ -97,7 +98,30 @@
           (list.length ? '<button class="btn small ghost danger-text" data-pl="clear">Очистить день</button>' : '') +
         '</div>' +
       '</section>' +
-      '<p class="hint muted small">Если название совпадает с задачей из «Сегодня», блок можно запустить таймером — и время запишется в статистику.</p>';
+      '<p class="hint muted small">Если название совпадает с задачей из «Сегодня», блок можно запустить таймером — и время запишется в статистику.</p>' +
+      '</div><aside class="plan-side">' + goalsPanel() + '</aside></div>';
+  }
+
+  // ---------- Сбоку: сколько времени хочу уделять задачам ----------
+  function goalsPanel() {
+    const st = S();
+    const tasks = st.tasks.filter((t) => !t.archived).sort((a, b) => (b.goalMin ? 1 : 0) - (a.goalMin ? 1 : 0));
+    const rows = App.goalRowsHTML({ titles: true });
+    return '<section class="card goals-panel"><h2 class="h-ic">' + I('target') + ' Сколько времени хочу уделять</h2>' +
+      (rows || '<p class="muted small">Задай задачам цель — например, «ML — 60 мин в день» или «Хобби — 3 ч в неделю». На главной появятся таймеры с прогрессом.</p>') +
+      '<details class="goal-edit"' + (rows ? '' : ' open') + '><summary class="small"><b>Настроить цели</b></summary>' +
+        (tasks.length ? '<ul class="goal-edit-list">' + tasks.map((t) => {
+          const c = Store.category(t.categoryId);
+          return '<li><span class="cat"><i style="background:' + c.color + '"></i>' + U.esc(t.name) + '</span>' +
+            '<span class="goal-inputs"><input type="number" min="0" max="10080" step="5" value="' + (t.goalMin || '') + '" placeholder="—" data-goal-edit="min" data-id="' + t.id + '" aria-label="Минут для «' + U.esc(t.name) + '»"><span class="muted small">мин</span>' +
+            '<select data-goal-edit="period" data-id="' + t.id + '" aria-label="За какой срок"><option value="day"' + (t.goalPeriod !== 'week' ? ' selected' : '') + '>в день</option><option value="week"' + (t.goalPeriod === 'week' ? ' selected' : '') + '>в неделю</option></select></span></li>';
+        }).join('') + '</ul>' : '') +
+        '<form id="goal-add" class="goal-add"><input name="name" maxlength="80" required placeholder="Новая задача" aria-label="Название новой задачи">' +
+          '<span class="goal-inputs"><input name="min" type="number" min="0" max="10080" step="5" placeholder="мин" aria-label="Минут"><select name="period" aria-label="За какой срок"><option value="day">в день</option><option value="week">в неделю</option></select></span>' +
+          '<select name="cat" aria-label="Категория">' + st.categories.map((c) => '<option value="' + c.id + '"' + (c.id === (st.settings.lastCat || 'study') ? ' selected' : '') + '>' + U.esc(c.name) + '</option>').join('') + '</select>' +
+          '<button class="btn primary small">Добавить</button></form>' +
+        '<p class="muted small">Пустое поле — без цели. Время считается по таймеру: на день — с полуночи, на неделю — с понедельника.</p>' +
+      '</details></section>';
   }
 
   // Несделанные блоки за последние 7 дней, которые ещё не переносили и не скрывали
@@ -271,6 +295,17 @@
     }
   });
 
+  // Изменили цель задачи в панели сбоку
+  document.addEventListener('change', (e) => {
+    if (!root || !root.contains(e.target) || !e.target.dataset.goalEdit) return;
+    const t = Store.task(e.target.dataset.id);
+    if (!t) return;
+    if (e.target.dataset.goalEdit === 'min') t.goalMin = Math.max(0, Math.round(Number(e.target.value) || 0));
+    else t.goalPeriod = e.target.value === 'week' ? 'week' : 'day';
+    Store.save(); App.render();
+    const det = root.querySelector('.goal-edit'); if (det) det.open = true;
+  });
+
   document.addEventListener('change', (e) => {
     if (!root || !root.contains(e.target) || e.target.dataset.pl !== 'done') return;
     const b = S().plan.find((x) => x.id === e.target.dataset.id);
@@ -280,6 +315,21 @@
     const sum = App.planSummary(b.day);
     if (b.done && sum.total && sum.done === sum.total) { U.toast('Весь план на день выполнен!'); if (window.Sound) Sound.notify(); }
     App.render();
+  });
+
+  document.addEventListener('submit', (e) => {
+    if (!root || e.target.id !== 'goal-add') return;
+    e.preventDefault();
+    const d = U.formData(e.target);
+    if (!d.name) return;
+    const existing = S().tasks.find((t) => !t.archived && t.name.trim().toLowerCase() === d.name.trim().toLowerCase());
+    const t = existing || { id: U.uid(), createdAt: Date.now(), name: d.name.trim(), categoryId: d.cat || 'study' };
+    if (!existing) S().tasks.push(t);
+    t.goalMin = Math.max(0, Math.round(Number(d.min) || 0));
+    t.goalPeriod = d.period === 'week' ? 'week' : 'day';
+    Store.save(); App.render();
+    U.toast(existing ? 'Цель обновлена: «' + t.name + '»' : 'Задача добавлена: «' + t.name + '»');
+    const det = root.querySelector('.goal-edit'); if (det) det.open = true;
   });
 
   document.addEventListener('submit', (e) => {

@@ -20,7 +20,7 @@
 
   function filterGoal() {
     if (filter === 'all') return Stats.goalSec();
-    if (filter.startsWith('task:')) { const t = Store.task(filter.slice(5)); return t && t.goalMin ? t.goalMin * 60 : 0; }
+    if (filter.startsWith('task:')) { const t = Store.task(filter.slice(5)); return t && t.goalMin ? Math.round(t.goalMin * 60 / (t.goalPeriod === 'week' ? 7 : 1)) : 0; }
     return 0;
   }
 

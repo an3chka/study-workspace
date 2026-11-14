@@ -52,6 +52,7 @@
         '<section class="card today-card" id="today-card">' + todayCard(todayList) + '</section>' +
         '<section class="card timer-card" id="timer-card">' + timerCard(mode) + '</section>' +
       '</div>' +
+      goalsCard() +
       App.gameCardHTML() +
       (function () {
         const ins = App.insightsToday();
@@ -84,8 +85,8 @@
             '<button class="play" data-act="' + (running ? 'stop' : 'start') + '" data-id="' + t.id + '" aria-label="' + (running ? 'Остановить' : 'Запустить') + ' ' + U.esc(t.name) + '">' + (running ? I('stop') : I('play')) + '</button>' +
             '<div class="task-main"><div class="task-name">' + U.esc(t.name) + '</div>' +
             '<div class="task-meta"><span class="cat"><i style="background:' + c.color + '"></i>' + U.esc(c.name) + '</span>' +
-            (t.goalMin ? '<span>цель ' + t.goalMin + ' мин/день</span>' : '') + '</div>' +
-            (t.goalMin ? '<div class="mini-bar"><span style="width:' + Math.min(100, (perTask[t.id] || 0) / 60 / t.goalMin * 100) + '%;background:' + c.color + '"></span></div>' : '') +
+            (t.goalMin ? '<span>цель ' + U.human(t.goalMin * 60) + (t.goalPeriod === 'week' ? ' в неделю' : ' в день') + '</span>' : '') + '</div>' +
+            (t.goalMin ? '<div class="mini-bar"><span style="width:' + Math.round(Stats.taskGoal(t).frac * 100) + '%;background:' + c.color + '"></span></div>' : '') +
             '</div>' +
             '<div class="task-time"><b data-live-task="' + t.id + '">' + U.human(perTask[t.id] || 0) + '</b><small>всего ' + U.human(totalPerTask[t.id] || 0) + '</small></div>' +
             '<button class="icon-btn" data-act="menu" data-id="' + t.id + '" aria-label="Действия с задачей">' + I('more') + '</button>' +
@@ -112,6 +113,12 @@
     if (days <= 0) return 'сегодня в ' + U.timeLabel(ts);
     if (days === 1) return 'вчера';
     return days + ' ' + U.plural(days, ['день', 'дня', 'дней']) + ' назад';
+  }
+
+  function goalsCard() {
+    const rows = App.goalRowsHTML();
+    if (!rows) return '';
+    return '<section class="card goals-card" id="goals-card"><div class="card-head"><h2 class="h-ic">' + I('target') + ' Цели по времени</h2><a class="small" href="#/plan">изменить ›</a></div>' + rows + '</section>';
   }
 
   function todayCard(todayList) {
@@ -192,6 +199,8 @@
       const list = Stats.inRange(todayFrom, U.addDays(todayFrom, 1));
       const card = root.querySelector('#today-card');
       if (card) card.innerHTML = todayCard(list);
+      const gc = root.querySelector('#goals-card');
+      if (gc) gc.outerHTML = goalsCard();
       const a = S().active;
       const el = root.querySelector('[data-live-task="' + a.taskId + '"]');
       if (el) el.textContent = U.human(Stats.sum(list.filter((s) => s.taskId === a.taskId)));
@@ -215,7 +224,8 @@
       body:
         '<label>Название<input name="name" required maxlength="80" value="' + U.esc(t.name) + '"></label>' +
         '<label>Категория<select name="categoryId">' + catOptions(t.categoryId) + '</select></label>' +
-        '<label>Цель на день, мин (необязательно)<input name="goalMin" type="number" min="0" max="1440" value="' + U.esc(t.goalMin || '') + '" placeholder="например, 20"></label>',
+        '<div class="row goal-field"><label>Сколько хочу уделять, мин <span class="muted small">(необязательно)</span><input name="goalMin" type="number" min="0" max="10080" value="' + U.esc(t.goalMin || '') + '" placeholder="например, 60"></label>' +
+        '<label>За какой срок<select name="goalPeriod"><option value="day"' + (t.goalPeriod !== 'week' ? ' selected' : '') + '>в день</option><option value="week"' + (t.goalPeriod === 'week' ? ' selected' : '') + '>в неделю</option></select></label></div>',
       extra: isNew ? '' : '<button type="button" class="btn ghost" data-x="stats">' + I('chart') + ' Статистика</button><button type="button" class="btn ghost" data-x="archive">В архив</button><button type="button" class="btn ghost danger-text" data-x="delete">Удалить</button>',
       onOpen(form, close) {
         form.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', async () => {
@@ -246,6 +256,7 @@
         t.name = data.name;
         t.categoryId = data.categoryId;
         t.goalMin = Number(data.goalMin) || 0;
+        t.goalPeriod = data.goalPeriod === 'week' ? 'week' : 'day';
         Store.save(); App.render();
       },
     });

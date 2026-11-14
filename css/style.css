@@ -1421,3 +1421,27 @@ button.quest:hover { border-color: var(--accent); }
 .tb-run-btn .ic { width: 12px; height: 12px; }
 .topbar > .tb-run + .tb-card { margin-left: 0; }
 @media (max-width: 760px) { .tb-run { font-size: .72rem; } }
+
+/* ===== Цели по времени ===== */
+.plan-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+.plan-side { position: sticky; top: 70px; }
+@media (max-width: 1180px) { .plan-layout { grid-template-columns: 1fr; } .plan-side { position: static; } }
+.goal-h { font-size: .85rem; color: var(--muted); font-weight: 650; margin: 10px 0 6px; }
+.goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.goal-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); }
+.goal-row.done { background: var(--good-soft); }
+.goal-row .play.small-play { width: 34px; height: 34px; flex: none; }
+.goal-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.goal-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.goal-top b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.goal-top .ic { width: 13px; height: 13px; vertical-align: -2px; color: var(--good); }
+.goal-edit { margin-top: 12px; }
+.goal-edit-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.goal-edit-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.goal-inputs { display: inline-flex; align-items: center; gap: 4px; }
+.goal-inputs input { width: 72px; padding: 4px 6px; }
+.goal-inputs select { width: auto; padding: 4px 6px; }
+.goal-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.goal-add > input[name=name] { flex: 1 1 140px; }
+.goal-add > select { width: auto; }
+.goal-field { gap: 10px; }
