@@ -633,14 +633,19 @@ elif TEST_CODE:
   }
 
   function renderTasks(el) {
+    const mods = window.ML_MODULES || [];
+    const modSection = ([m, name, desc, pin]) => {
+      const list = tasks().filter((t) => t.module === m);
+      if (!list.length) return '';
+      return '<section class="card"><h2>' + U.esc(name) + '</h2>' + (pin === 'top' && desc ? '<p class="muted small">' + U.esc(desc) + '</p>' : '') +
+        '<div class="topic-grid">' + list.map((t) => taskCard(t)).join('') + '</div></section>';
+    };
     el.innerHTML = header('Задачи на Python — запускаются прямо в браузере, проверка тестами') + tabs('code') +
       privateHint() +
-      '<a class="card hw-banner play-banner" href="#/ml/play">' + I('play') + '<div><b>Песочница Python</b><small>Просто запусти код с numpy и посмотри вывод — без задач и тестов</small></div>' + I('chevron-right') + '</a>' + hwSection() +
-      (window.ML_MODULES || []).map(([m, name]) => {
-        const list = tasks().filter((t) => t.module === m);
-        if (!list.length) return '';
-        return '<section class="card"><h2>' + U.esc(name) + '</h2><div class="topic-grid">' + list.map((t) => taskCard(t)).join('') + '</div></section>';
-      }).join('') +
+      '<a class="card hw-banner play-banner" href="#/ml/play">' + I('play') + '<div><b>Песочница Python</b><small>Просто запусти код с numpy и посмотри вывод — без задач и тестов</small></div>' + I('chevron-right') + '</a>' +
+      // Разделы с пометкой 'top' (например, то, над чем работаешь сейчас) — выше длинного трека
+      mods.filter((m) => m[3] === 'top').map(modSection).join('') + hwSection() +
+      mods.filter((m) => m[3] !== 'top').map(modSection).join('') +
       '<section class="card"><h2 class="h-ic">' + I('grid') + ' Задачи по библиотекам</h2>' + libs().filter((l) => libTasks(l.id).length).map((l) =>
         '<h3 class="notes-sub"><a href="#/ml/lib/' + l.id + '">' + U.esc(l.name) + '</a></h3><div class="topic-grid">' + libTasks(l.id).map((t) => taskCard(t)).join('') + '</div>').join('') + '</section>' +
       '<p class="muted small">Python работает в браузере (Pyodide + numpy; pandas, scikit-learn и другие пакеты скачаются при первом import). Первый запуск занимает 10–20 секунд, дальше быстро.</p>';
