@@ -236,17 +236,34 @@ elif TEST_CODE:
         '<div class="kpi card"><span class="kpi-label">Тем изучено</span><span class="kpi-value">' + topics().filter((t) => pr.quiz[t.id] >= 50).length + '/' + topics().length + '</span><span class="kpi-sub">тест ≥ 50%</span></div>' +
         '<div class="kpi card"><span class="kpi-label">Вопросы собеса</span><span class="kpi-value">' + known + '/' + qs.length + '</span><span class="kpi-sub">отмечено «знаю»</span></div>' +
         '<div class="kpi card"><span class="kpi-label">Задачи с кодом</span><span class="kpi-value">' + solved + '/' + tasks().length + '</span><span class="kpi-sub">все тесты пройдены</span></div>' +
-      '</div>' + hwBanner() + privateHint() +
-      newTopicCard() + modules().map(([m, name, desc]) => {
-        const list = topics().filter((t) => t.module === m);
-        return '<section class="card"><div class="card-head"><h2>' + U.esc(name) + '</h2><span class="muted small">' + U.esc(desc) + '</span></div>' +
-          '<div class="topic-grid">' + list.map((t) => {
-            const q = pr.quiz[t.id];
-            return '<a class="topic-card' + (q >= 50 ? ' done' : '') + '" href="#/ml/t/' + t.id + '"><b>' + U.esc(t.title) + '</b><small>' + U.esc(t.summary) + '</small>' +
-              (t.course ? '<span class="tag course-tag">' + U.esc(t.course) + '</span>' : '') +
-              (q != null ? '<span class="topic-done">' + I('check') + ' ' + q + '%</span>' : '') + '</a>';
-          }).join('') + '</div></section>';
-      }).join('');
+      '</div>' + hwBanner() + modules().filter((m) => m[3] === 'top' && !tracks().some((tr) => tr.module === m[0])).map(modBanner).join('') + privateHint() +
+      modules().filter((m) => m[3] === 'top').map(themeSection).join('') +
+      newTopicCard() + modules().filter((m) => m[3] !== 'top').map(themeSection).join('');
+  }
+
+  // Баннер «задачи раздела» — для разделов с пометкой 'top' (то, над чем работаешь сейчас)
+  function modBanner([m, name]) {
+    const list = tasks().filter((t) => t.module === m);
+    if (!list.length) return '';
+    const done = list.filter((t) => P().solved[t.id]).length;
+    return '<a class="card hw-banner" href="#/ml/code">' + I('code') + '<div><b>' + U.esc(name) + ' — задачи</b>' +
+      '<small>' + list.length + ' ' + U.plural(list.length, ['задача', 'задачи', 'задач']) + ' · сделано ' + done + '</small>' +
+      '<div class="bar"><i style="width:' + Math.round(100 * done / list.length) + '%"></i></div></div>' + I('chevron-right') + '</a>';
+  }
+
+  // Раздел тем на главной ML; если у раздела есть задачи — ссылка на них
+  function themeSection([m, name, desc]) {
+    const pr = P();
+    const list = topics().filter((t) => t.module === m);
+    const nTasks = tasks().filter((t) => t.module === m).length;
+    return '<section class="card"><div class="card-head"><h2>' + U.esc(name) + '</h2><span class="muted small">' + U.esc(desc) +
+      (nTasks ? ' · <a href="#/ml/code">задачи (' + nTasks + ') ›</a>' : '') + '</span></div>' +
+      '<div class="topic-grid">' + list.map((t) => {
+        const q = pr.quiz[t.id];
+        return '<a class="topic-card' + (q >= 50 ? ' done' : '') + '" href="#/ml/t/' + t.id + '"><b>' + U.esc(t.title) + '</b><small>' + U.esc(t.summary) + '</small>' +
+          (t.course ? '<span class="tag course-tag">' + U.esc(t.course) + '</span>' : '') +
+          (q != null ? '<span class="topic-done">' + I('check') + ' ' + q + '%</span>' : '') + '</a>';
+      }).join('') + '</div></section>';
   }
 
 
@@ -384,13 +401,22 @@ elif TEST_CODE:
       '<p class="muted small">Сравни: что сделано иначе, что короче или понятнее, какие крайние случаи учтены. Твой код в редакторе не изменился.</p>';
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  function hwTasks() { return tasks().filter((t) => t.module === 'track'); }
-  function hwBanner() {
-    const hw = window.ML_TRACK;
-    if (!hw) return '';
-    const list = hwTasks(), done = list.filter((t) => P().solved[t.id]).length;
+  // Треки «по шагам»: старый window.ML_TRACK (задачи с module 'track') и любые из window.ML_TRACKS
+  // (у каждого свой module). Трек с pin: 'top' показывается выше остальных.
+  function tracks() {
+    const list = (window.ML_TRACKS || []).filter((tr) => tr && tr.module);
+    const old = window.ML_TRACK ? [Object.assign({ module: 'track' }, window.ML_TRACK)] : [];
+    return list.filter((tr) => tr.pin === 'top').concat(old, list.filter((tr) => tr.pin !== 'top'));
+  }
+  function trackOf(t) { return tracks().find((tr) => tr.module === t.module) || null; }
+  function trackTasks(tr) { return tasks().filter((t) => t.module === tr.module); }
+  function hwTasks() { return tasks().filter((t) => trackOf(t)); }
+  function hwBanner() { return tracks().map(trackBanner).join(''); }
+  function trackBanner(hw) {
+    const list = trackTasks(hw), done = list.filter((t) => P().solved[t.id]).length;
+    if (!list.length) return '';
     return '<a class="card hw-banner" href="#/ml/code">' + I('target') + '<div><b>' + U.esc(hw.title) + ' — по шагам</b>' +
-      '<small>' + list.length + ' задач' + (hw.sub ? ': ' + U.esc(hw.sub) : '') + ' · сделано ' + done + '</small>' +
+      '<small>' + list.length + ' ' + U.plural(list.length, ['задача', 'задачи', 'задач']) + (hw.sub ? ': ' + U.esc(hw.sub) : '') + ' · сделано ' + done + '</small>' +
       '<div class="bar"><i style="width:' + Math.round(100 * done / Math.max(1, list.length)) + '%"></i></div></div>' + I('chevron-right') + '</a>';
   }
 
@@ -503,7 +529,7 @@ elif TEST_CODE:
 
   function renderTopic(el, t) {
     const pr = P();
-    const related = tasks().filter((x) => x.topic === t.id && x.module !== 'track');
+    const related = tasks().filter((x) => x.topic === t.id && !trackOf(x));
     const hwRel = hwTasks().filter((x) => x.topic === t.id);
     const topicQs = questions().filter((q) => q.topic.id === t.id);
     const myNotes = (NOTE_MAP[t.id] || []);
@@ -529,7 +555,7 @@ elif TEST_CODE:
         '<section class="card theory-actions"><h2>Практика</h2><div class="row-btns">' +
           (t.quiz && t.quiz.length ? '<button class="btn primary" data-ml="quiz">' + I('target') + ' Тест по теме (' + t.quiz.length + ')</button>' : '') +
           related.map((x) => '<a class="btn" href="#/ml/code/' + x.id + '">' + I('code') + ' ' + U.esc(x.title) + (pr.solved[x.id] ? ' ✓' : '') + '</a>').join('') +
-          (hwRel.length ? '<a class="btn" href="#/ml/code">' + I('target') + ' ' + U.esc((window.ML_TRACK || {}).short || 'Трек') + ': задачи по теме (' + hwRel.length + ')</a>' : '') +
+          (hwRel.length ? '<a class="btn" href="#/ml/code">' + I('target') + ' ' + U.esc((trackOf(hwRel[0]) || {}).short || 'Трек') + ': задачи по теме (' + hwRel.length + ')</a>' : '') +
           (t.private ? '' : App.mlBankBtns('topic:' + t.id, 'data-ml', 'ai-quiz', 'ai-quiz-saved', 'Ещё вопросы от нейросети')) +
           (t.custom ? '<button class="btn ghost" data-ml="del-topic">Удалить тему</button>' : '') +
         '</div>' + (pr.quiz[t.id] != null ? '<p class="muted small">Лучший результат теста: ' + pr.quiz[t.id] + '%</p>' : '') + '</section>' +
@@ -613,20 +639,21 @@ elif TEST_CODE:
       (pr.solved[t.id] ? '<span class="topic-done">' + I('check') + (t.local ? ' сделано' : ' решено') + '</span>' : '') + '</a>';
   }
 
-  function hwSection() {
-    const hw = window.ML_TRACK;
+  function hwSection(hw) {
     if (!hw) return '';
-    const pr = P(), list = hwTasks(), done = list.filter((t) => pr.solved[t.id]).length;
-    return '<section class="card hw-track" id="track"><div class="card-head"><h2 class="h-ic">' + I('target') + ' ' + U.esc(hw.title) + '</h2>' +
+    const pr = P(), list = trackTasks(hw), done = list.filter((t) => pr.solved[t.id]).length;
+    if (!list.length) return '';
+    return '<section class="card hw-track"><div class="card-head"><h2 class="h-ic">' + I('target') + ' ' + U.esc(hw.title) + '</h2>' +
         '<span class="tag course-tag">' + done + ' / ' + list.length + '</span></div>' +
       '<p>' + App.md(hw.intro) + '</p>' +
       '<div class="bar"><i style="width:' + Math.round(100 * done / Math.max(1, list.length)) + '%"></i></div>' +
-      '<details class="hw-tips"><summary>Как экспериментировать, чтобы был толк</summary><ul class="key-list">' +
-        hw.tips.map((x) => '<li>' + I('check') + '<span>' + App.md(x) + '</span></li>').join('') + '</ul></details>' +
+      ((hw.tips || []).length ? '<details class="hw-tips"><summary>' + U.esc(hw.tipsTitle || 'Как экспериментировать, чтобы был толк') + '</summary><ul class="key-list">' +
+        hw.tips.map((x) => '<li>' + I('check') + '<span>' + App.md(x) + '</span></li>').join('') + '</ul></details>' : '') +
       hw.stages.map(([n, name, sub]) => {
         const st = list.filter((t) => t.stage === n);
         const d = st.filter((t) => pr.solved[t.id]).length;
-        return '<div class="hw-stage"><h3>Часть ' + n + '. ' + U.esc(name) + ' <span class="muted small">' + d + '/' + st.length + '</span></h3>' +
+        if (!st.length) return '';
+        return '<div class="hw-stage"><h3>' + (hw.stageWord === '' ? '' : (hw.stageWord || 'Часть') + ' ' + n + '. ') + U.esc(name) + ' <span class="muted small">' + d + '/' + st.length + '</span></h3>' +
           '<p class="muted small">' + U.esc(sub) + '</p>' +
           '<div class="topic-grid">' + st.map((t, i) => taskCard(t, n + '.' + (i + 1))).join('') + '</div></div>';
       }).join('') + '</section>';
@@ -634,6 +661,7 @@ elif TEST_CODE:
 
   function renderTasks(el) {
     const mods = window.ML_MODULES || [];
+    const hasTrack = (m) => tracks().some((tr) => tr.module === m);
     const modSection = ([m, name, desc, pin]) => {
       const list = tasks().filter((t) => t.module === m);
       if (!list.length) return '';
@@ -644,8 +672,8 @@ elif TEST_CODE:
       privateHint() +
       '<a class="card hw-banner play-banner" href="#/ml/play">' + I('play') + '<div><b>Песочница Python</b><small>Просто запусти код с numpy и посмотри вывод — без задач и тестов</small></div>' + I('chevron-right') + '</a>' +
       // Разделы с пометкой 'top' (например, то, над чем работаешь сейчас) — выше длинного трека
-      mods.filter((m) => m[3] === 'top').map(modSection).join('') + hwSection() +
-      mods.filter((m) => m[3] !== 'top').map(modSection).join('') +
+      mods.filter((m) => m[3] === 'top' && !hasTrack(m[0])).map(modSection).join('') + tracks().map(hwSection).join('') +
+      mods.filter((m) => m[3] !== 'top' && !hasTrack(m[0])).map(modSection).join('') +
       '<section class="card"><h2 class="h-ic">' + I('grid') + ' Задачи по библиотекам</h2>' + libs().filter((l) => libTasks(l.id).length).map((l) =>
         '<h3 class="notes-sub"><a href="#/ml/lib/' + l.id + '">' + U.esc(l.name) + '</a></h3><div class="topic-grid">' + libTasks(l.id).map((t) => taskCard(t)).join('') + '</div>').join('') + '</section>' +
       '<p class="muted small">Python работает в браузере (Pyodide + numpy; pandas, scikit-learn и другие пакеты скачаются при первом import). Первый запуск занимает 10–20 секунд, дальше быстро.</p>';
@@ -765,8 +793,9 @@ elif TEST_CODE:
   }
 
   function hwNav(t) {
-    if (t.module !== 'track' && t.module !== 'lib') return '';
-    const list = t.module === 'track' ? hwTasks() : libTasks(t.lib), i = list.indexOf(t);
+    const tr = trackOf(t);
+    if (!tr && t.module !== 'lib') return '';
+    const list = tr ? trackTasks(tr) : libTasks(t.lib), i = list.indexOf(t);
     const prev = list[i - 1], next = list[i + 1];
     return '<div class="hw-nav">' +
       (prev ? '<a class="btn ghost" href="#/ml/code/' + prev.id + '">' + I('chevron-left') + ' ' + U.esc(prev.title) + '</a>' : '<span></span>') +
@@ -776,15 +805,15 @@ elif TEST_CODE:
   function renderTask(el, t) {
     const pr = P();
     const code = pr.code[t.id] != null ? pr.code[t.id] : t.starter;
-    const hw = t.module === 'track';
-    const stage = hw && window.ML_TRACK ? window.ML_TRACK.stages.find((s) => s[0] === t.stage) : null;
+    const hw = trackOf(t);
+    const stage = hw ? (hw.stages || []).find((s) => s[0] === t.stage) : null;
     const checks = pr.checks[t.id] || [];
     if (codeFor !== t.id) { codeOut = ''; codeTb = ''; }
     el.innerHTML = header() +
-      (t.module === 'lib' && lib(t.lib) ? backLinkHTML('#/ml/lib/' + t.lib, lib(t.lib).name + ': теория и задачи') : '<a class="link-btn" href="#/ml/code">' + I('chevron-left') + (hw ? ' ' + U.esc((window.ML_TRACK || {}).short || 'Трек') + ': все шаги' : ' Все задачи') + '</a>') +
+      (t.module === 'lib' && lib(t.lib) ? backLinkHTML('#/ml/lib/' + t.lib, lib(t.lib).name + ': теория и задачи') : '<a class="link-btn" href="#/ml/code">' + I('chevron-left') + (hw ? ' ' + U.esc(hw.short || 'Трек') + ': все шаги' : ' Все задачи') + '</a>') +
       '<section class="card"><div class="card-head"><h2>' + U.esc(t.title) + '</h2><span class="muted small">' + '★'.repeat(t.level) + '☆'.repeat(3 - t.level) + '</span>' +
         (pr.solved[t.id] ? '<span class="tag ok">' + (t.local ? 'сделано' : 'решено') + '</span>' : '') + '</div>' +
-        (stage ? '<p class="muted small">' + U.esc(window.ML_TRACK.short || '') + ' · Часть ' + stage[0] + '. ' + U.esc(stage[1]) + '</p>' : '') +
+        (stage ? '<p class="muted small">' + U.esc(hw.short || '') + ' · ' + (hw.stageWord === '' ? '' : (hw.stageWord || 'Часть') + ' ' + stage[0] + '. ') + U.esc(stage[1]) + '</p>' : '') +
         '<p>' + App.md(t.desc) + '</p>' +
         (topic(t.topic) ? '<a class="small" href="#/ml/t/' + t.topic + '">' + I('book') + ' Теория: ' + U.esc(topic(t.topic).title) + '</a>' : '') + '</section>' +
       (t.local ? '<section class="card"><h2 class="h-ic">' + I('check') + ' Чек-лист: что должно получиться</h2><ul class="check-list">' +
