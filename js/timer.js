@@ -158,14 +158,15 @@
       const name = task ? task.name : 'Задача';
       if (a.mode === 'pomo') {
         const label = a.waiting ? 'ждёт продолжения' : a.phase === 'work' ? 'помидор ' + a.round : a.phase === 'long' ? 'длинный перерыв' : 'перерыв';
-        return { time: U.clock(Timer.remaining()), name, label, phase: a.phase, waiting: !!a.waiting };
+        const left = Timer.remaining();
+        return { time: U.clock(left), mins: a.waiting ? 'пауза' : 'осталось ' + Math.max(1, Math.ceil(left / 60)) + ' мин', name, label, phase: a.phase, waiting: !!a.waiting };
       }
-      return { time: U.clock(Timer.elapsed()), name, label: 'идёт', phase: 'work' };
+      return { time: U.clock(Timer.elapsed()), mins: U.human(Timer.elapsed()), name, label: 'идёт', phase: 'work' };
     },
 
     updateTitle() {
       const d = Timer.display();
-      document.title = d ? d.time + (d.phase === 'work' ? '' : ' перерыв') + ' · ' + d.name : baseTitle;
+      document.title = d ? d.mins + (d.phase === 'work' ? '' : ' · перерыв') + ' · ' + d.name : baseTitle;
     },
   };
 

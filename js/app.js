@@ -65,11 +65,13 @@
     const st = Store.state;
     const d = Timer.display();
     if (d) {
-      topbar.className = 'topbar running phase-' + d.phase + (d.waiting ? ' waiting' : '');
-      topbar.innerHTML = '<span class="tb-dot"></span><span class="tb-time" id="tb-time">' + d.time + '</span>' +
-        '<span class="tb-task">' + U.esc(d.name) + ' <small class="muted">' + U.esc(d.label) + '</small></span>' +
-        (d.waiting ? '<button class="btn small primary" data-tb="resume">' + I('play') + ' Продолжить</button>' : '') +
-        '<button class="btn small" data-tb="stop">' + I('stop') + ' Стоп</button>' + '<button class="icon-btn tb-card" data-tb="card" title="Новая карточка: слово и перевод" aria-label="Новая карточка">' + I('cards') + '<span class="tb-card-plus">+</span></button>';
+      // Таймер идёт — маленькая плашка, как у «считаю сама»: только минуты, без бегущих секунд
+      topbar.className = 'topbar';
+      topbar.innerHTML = I('timer') +
+        '<span class="tb-run phase-' + d.phase + (d.waiting ? ' waiting' : '') + '" title="Таймер идёт">' + I(d.phase === 'work' ? 'timer' : 'coffee') + ' ' +
+          U.esc(d.name) + (d.phase !== 'work' || d.waiting ? ' · ' + U.esc(d.label) : '') + ' · <b id="tb-time">' + U.esc(d.mins) + '</b>' +
+          (d.waiting ? '<button class="tb-run-btn" data-tb="resume" aria-label="Продолжить" title="Продолжить">' + I('play') + '</button>' : '') +
+          '<button class="tb-run-btn" data-tb="stop" aria-label="Остановить и записать" title="Остановить и записать">' + I('stop') + '</button></span>' + '<button class="icon-btn tb-card" data-tb="card" title="Новая карточка: слово и перевод" aria-label="Новая карточка">' + I('cards') + '<span class="tb-card-plus">+</span></button>';
       return;
     }
     const tasks = st.tasks.filter((t) => !t.archived);
@@ -254,7 +256,7 @@
     if (kind === 'tick') {
       const tt = document.getElementById('tb-time');
       const d = Timer.display();
-      if (tt && d) tt.textContent = d.time;
+      if (tt && d && tt.textContent !== d.mins) tt.textContent = d.mins; // меняется раз в минуту
       if (current && current.tick) current.tick();
     } else {
       renderTopbar();

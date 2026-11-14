@@ -1328,7 +1328,7 @@ p.center { text-align: center; }
 /* ===== Быстрая карточка ===== */
 .tb-card { position: relative; flex: none; color: var(--accent); }
 .tb-auto + .tb-card { margin-left: 0; }
-.topbar > .tb-card:not(.tb-auto + .tb-card) { margin-left: auto; }
+.topbar > .tb-card:not(.tb-auto + .tb-card):not(.tb-run + .tb-card) { margin-left: auto; }
 .tb-card-plus { position: absolute; right: 2px; top: 0; font-size: .75rem; font-weight: 800; line-height: 1; color: var(--accent); background: var(--bg); border-radius: 50%; width: 12px; height: 12px; display: grid; place-items: center; }
 .qc-chip { position: fixed; z-index: 60; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface, #fff); color: var(--accent); font: inherit; font-size: .85rem; font-weight: 650; box-shadow: 0 6px 20px rgba(0,0,0,.14); cursor: pointer; animation: fade .15s; }
 .qc-chip .ic { width: 15px; height: 15px; }
@@ -1409,3 +1409,15 @@ button.quest:hover { border-color: var(--accent); }
 .diary-face .ic { width: 18px; height: 18px; }
 .diary-entry .j-text { margin-top: 4px; line-height: 1.6; }
 .diary-card a.btn { text-decoration: none; }
+
+/* Идущий таймер — маленькая плашка в верхней панели (только минуты) */
+.tb-run { display: inline-flex; align-items: center; gap: 5px; font-size: .82rem; color: var(--accent); padding: 3px 4px 3px 10px; border-radius: 99px; background: var(--accent-soft); white-space: nowrap; margin-left: auto; max-width: 70%; overflow: hidden; }
+.tb-run .ic { width: 14px; height: 14px; flex: none; }
+.tb-run.phase-break, .tb-run.phase-long { color: var(--good); background: var(--good-soft); }
+.tb-run.waiting { color: var(--muted); background: var(--surface-2); }
+.tb-run b { font-variant-numeric: tabular-nums; }
+.tb-run-btn { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--surface); color: inherit; cursor: pointer; flex: none; }
+.tb-run-btn:hover { background: var(--bg); }
+.tb-run-btn .ic { width: 12px; height: 12px; }
+.topbar > .tb-run + .tb-card { margin-left: 0; }
+@media (max-width: 760px) { .tb-run { font-size: .72rem; } }

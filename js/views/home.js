@@ -137,7 +137,7 @@
     if (!d) {
       const last = st.settings.lastTask && Store.task(st.settings.lastTask);
       return '<div class="timer idle">' +
-        '<div class="timer-time">' + (mode === 'pomo' ? U.clock(st.settings.pomoWork * 60) : '00:00') + '</div>' +
+        '<div class="timer-time">' + (mode === 'pomo' ? st.settings.pomoWork + ' мин' : '0 мин') + '</div>' +
         '<p class="muted">' + (last && !last.archived ? 'Последняя задача: <b>' + U.esc(last.name) + '</b>' : 'Выбери задачу ниже и нажми «старт»') + '</p>' +
         (last && !last.archived ? '<button class="btn primary big" data-act="start" data-id="' + last.id + '">' + I('play') + ' Продолжить «' + U.esc(last.name) + '»</button>' : '') +
         '</div>';
@@ -148,7 +148,7 @@
     const frac = isPomo ? 1 - Timer.remaining() / total : 0;
     return '<div class="timer run phase-' + d.phase + '">' +
       '<div class="timer-label">' + (isPomo ? (d.phase === 'work' ? I('clock') : I('coffee')) : I('timer')) + U.esc(d.label) + '</div>' +
-      '<div class="timer-time" id="timer-time">' + d.time + '</div>' +
+      '<div class="timer-time" id="timer-time">' + U.esc(d.mins) + '</div>' +
       '<div class="timer-task">' + U.esc(d.name) + '</div>' +
       (isPomo ? '<div class="progress"><span id="timer-progress" style="width:' + (frac * 100) + '%"></span></div>' : '') +
       '<div class="timer-actions">' +
@@ -179,7 +179,7 @@
     if (!root) return;
     const d = Timer.display();
     const tt = root.querySelector('#timer-time');
-    if (d && tt) tt.textContent = d.time;
+    if (d && tt && tt.textContent !== d.mins) tt.textContent = d.mins; // только минуты — без бегущих секунд
     const pr = root.querySelector('#timer-progress');
     if (pr && S().active) {
       const a = S().active, st = S().settings;
